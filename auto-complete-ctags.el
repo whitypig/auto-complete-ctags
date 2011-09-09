@@ -38,13 +38,31 @@
   :group 'auto-complete-ctags)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvar ac-ctags-current-tags-table-list nil
+(defvar ac-ctags-current-tags-list nil
   "Current list of tags.")
 
 (defvar ac-ctags-tags-table-list-set nil
   "The set of lists of tags files.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun ac-ctags-visit-tags-file ()
+  "Select tags file."
+  (interactive))
+
+(defun ac-ctags-select-tags-list ()
+  "Swith to another list of tags."
+  (interactive))
+
+(defun ac-ctags-is-valid-tags-file-p (tags)
+  "Return t if TAGS is valid tags file created by exuberant
+  ctags."
+  nil)
+
+(defun ac-ctags-build-completion-table (tagslist)
+  "Build completion table from TAGSLIST.")
+
+(defun ac-ctags-build-completion-table-from-tags (tags)
+  )
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
