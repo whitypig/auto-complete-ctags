@@ -24,7 +24,27 @@
 
 ;;; Code:
 
+(require 'auto-complete)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Customize ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defgroup auto-complete-ctags nil
+  "A source for auto-complete-mode usign Exuberant ctags."
+  :prefix "ac-ctags-"
+  :group 'convenience)
+
+(defcustom ac-ctags-candidate-limit 50
+  "The upper limit number of candidates to be shown."
+  :type 'number
+  :group 'auto-complete-ctags)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defvar ac-ctags-current-tags-table-list nil
+  "Current list of tags.")
+
+(defvar ac-ctags-tags-table-list-set nil
+  "The set of lists of tags files.")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
