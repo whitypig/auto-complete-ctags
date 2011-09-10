@@ -68,8 +68,11 @@
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
-current one. TAGSFILE is guaranteed to be valid tagfile."
-  nil)
+current one. TAGSFILE is guaranteed to be a valid tagfile."
+  ;; Check if TAGSFILE is already in the current list.
+  (unless (member tagsfile ac-ctags-current-tags-list)
+    ;; If not in the list, ask user what to do.
+    (y-or-n-p "Use the tags list? ")))
 
 (defun ac-ctags-insert-into-new-list (tagsfile)
   ""
