@@ -72,7 +72,7 @@ current one. TAGSFILE is guaranteed to be a valid tagfile."
   ;; Check if TAGSFILE is already in the current list.
   (unless (member tagsfile ac-ctags-current-tags-list)
     ;; If not in the list, ask user what to do.
-    (y-or-n-p "Use the tags list? ")))
+    (y-or-n-p "Use the current tags list? ")))
 
 (defun ac-ctags-insert-into-new-list (tagsfile)
   ""
