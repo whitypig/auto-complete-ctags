@@ -41,7 +41,7 @@
 (defvar ac-ctags-current-tags-list nil
   "Current list of tags.")
 
-(defvar ac-ctags-tags-table-list-set nil
+(defvar ac-ctags-tags-list-set nil
   "The set of lists of tags files.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -75,9 +75,13 @@ current one. TAGSFILE is guaranteed to be a valid tagfile."
     ;; If not in the list, ask the user what to do.
     (y-or-n-p "Create new tags list? ")))
 
-(defun ac-ctags-insert-into-new-list (tagsfile)
-  ""
-  nil)
+(defun ac-ctags-insert-tags-into-new-list (tagsfile)
+  "Insert TAGSFILE into a new tags list."
+  (setq ac-ctags-current-tags-list (list tagsfile))
+  (unless (member ac-ctags-current-tags-list
+                  ac-ctags-tags-list-set)
+    (setq ac-ctags-tags-list-set
+          (push ac-ctags-current-tags-list ac-ctags-tags-list-set))))
 
 (defun ac-ctags-insert-into-current-list (tagsfile)
   ""
