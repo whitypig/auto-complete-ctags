@@ -51,26 +51,33 @@
   (let ((tagsfile (read-file-name "Visit tags file (default tags): "
                                    nil
                                    "tags"
-                                   t)))
+                                   t))
+        (tagslist nil))
     (when (ac-ctags-is-valid-tags-file-p tagsfile)
       ;; ask user whether the tags will be inserted into the current
       ;; list or new one.
-      (if (ac-ctags-create-new-list-p)
-          (ac-ctags-insert-into-new-list tagsfile)
-        (ac-ctags-insert-into-current-list tagsfile)))
-    ;; Either way, we have to (re)build completion table.
-    (ac-ctags-build-completion-table)))
+      (setq tagslist (if (ac-ctags-create-new-list-p tagsfile)
+                         (ac-ctags-insert-into-new-list tagsfile)
+                       (ac-ctags-insert-into-current-list tagsfile)))
+      ;; Either way, we have to (re)build completion table.
+      (and (not (null tagslist))
+           (listp tagslist)
+           (ac-ctags-build-completion-table tagslist))
+      ;; Then update the current tags list.
+      (setq ac-ctags-current-tags-list tagslist))))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
-  current one."
-  )
+current one. TAGSFILE is guaranteed to be valid tagfile."
+  nil)
 
 (defun ac-ctags-insert-into-new-list (tagsfile)
-  "")
+  ""
+  nil)
 
 (defun ac-ctags-insert-into-current-list (tagsfile)
-  "")
+  ""
+  nil)
 
 (defun ac-ctags-select-tags-list ()
   "Swith to another list of tags."
@@ -79,7 +86,7 @@
 (defun ac-ctags-is-valid-tags-file-p (tags)
   "Return t if TAGS is valid tags file created by exuberant
   ctags."
-  (let ((fullpath (and (file-exists-p tags) (expand-file-name tags)))
+  (let ((fullpath (and tags (file-exists-p tags) (expand-file-name tags)))
         (needle "!_TAG_PROGRAM_NAME	Exuberant Ctags"))
     (when fullpath
       (with-temp-buffer
@@ -89,8 +96,8 @@
 
 (defun ac-ctags-build-completion-table (tagslist)
   "Build completion table from TAGSLIST."
-  (loop for t in tagsfile
-        collect (ac-ctags-build-completion-table-from-tags t)))
+  (loop for tags in tagsfile
+        collect (ac-ctags-build-completion-table-from-tags tags)))
 
 (defun ac-ctags-build-completion-table-from-tags (tags)
   "Extract tag information for each entry in TAGS and return them
