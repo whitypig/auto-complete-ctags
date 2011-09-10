@@ -80,12 +80,14 @@ current one. TAGSFILE is guaranteed to be a valid tagfile."
   (setq ac-ctags-current-tags-list (list tagsfile))
   (unless (member ac-ctags-current-tags-list
                   ac-ctags-tags-list-set)
-    (setq ac-ctags-tags-list-set
-          (push ac-ctags-current-tags-list ac-ctags-tags-list-set))))
+    (push ac-ctags-current-tags-list ac-ctags-tags-list-set)))
 
-(defun ac-ctags-insert-into-current-list (tagsfile)
-  ""
-  nil)
+(defun ac-ctags-insert-tags-into-current-list (tagsfile)
+  "Insert TAGSFILE into the current tags list."
+  (setq ac-ctags-tags-list-set
+        (delete ac-ctags-current-tags-list ac-ctags-tags-list-set))
+  (push tagsfile ac-ctags-current-tags-list)
+  (push ac-ctags-current-tags-list ac-ctags-tags-list-set))
 
 (defun ac-ctags-select-tags-list ()
   "Swith to another list of tags."
