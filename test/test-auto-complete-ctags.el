@@ -37,3 +37,22 @@ this test fails."
     ;; the current.
     (should (equal nil (let ((ac-ctags-current-tags-list (list tags)))
                          (ac-ctags-create-new-list-p tags))))))
+
+(ert-deftest test-ac-ctags-insert-tags-into-new-list ()
+  (let ((ac-ctags-current-tags-list nil)
+        (ac-ctags-tags-list-set nil))
+    (ac-ctags-insert-tags-into-new-list "test.tags")
+    (should (equal '(("test.tags")) ac-ctags-tags-list-set))
+    (should (equal '("test.tags") ac-ctags-current-tags-list)))
+  (let ((ac-ctags-current-tags-list '("old.tags"))
+        (ac-ctags-tags-list-set '(("old.tags"))))
+    (ac-ctags-insert-tags-into-new-list "test.tags")
+    (should (equal '(("test.tags") ("old.tags")) ac-ctags-tags-list-set))
+    (should (equal '("test.tags") ac-ctags-current-tags-list)))
+  ;; Case that the newly created list has already been in hte set.
+  ;; The set should not change.
+  (let ((ac-ctags-current-tags-list '("old.tags"))
+        (ac-ctags-tags-list-set '(("test.tags") ("old.tags"))))
+    (ac-ctags-insert-tags-into-new-list "test.tags")
+    (should (equal '(("test.tags") ("old.tags")) ac-ctags-tags-list-set))
+    (should (equal '("test.tags") ac-ctags-current-tags-list))))
