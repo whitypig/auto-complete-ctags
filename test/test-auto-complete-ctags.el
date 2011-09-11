@@ -58,6 +58,7 @@ this test fails."
     (should (equal '("test.tags") ac-ctags-current-tags-list))))
 
 (ert-deftest test-ac-ctags-insert-tags-into-current-list ()
+  "A test for inserting tags into the current tags list."
   (let ((ac-ctags-current-tags-list nil)
         (ac-ctags-tags-list-set nil))
     (ac-ctags-insert-tags-into-current-list "new.tags")
