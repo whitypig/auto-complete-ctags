@@ -147,7 +147,8 @@ TAGS is expected to be an absolute path name."
           (push (list name (ac-ctags-trim-whitespace cmd) signature) db))))
     db))
 
-(defun ac-ctags-build-completion-table (tagsdb)
+(defun ac-ctags-build-completion-table (tags-db)
+  "TAGS-DB must be created by ac-ctags-build-tagdb beforehand."
   (setq ac-ctags-completion-table
         (sort (mapcar #'car tagsdb) #'string<)))
 
