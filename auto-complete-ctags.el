@@ -1,4 +1,4 @@
-;;; auto-complete-ctags.el --- 
+;;; auto-complete-ctags.el ---
 
 ;; Copyright (C) 2011  whitypig
 
@@ -20,7 +20,7 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;;; Code:
 
@@ -163,10 +163,10 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-get-signature (name db)
   "Return a list of signatures corresponding NAME."
   (loop for e in db
+        ;; linear searching is not what I want to use...
         when (and (string= name (car e))
                   (not (null (caddr e))))
         collect (caddr e)))
-                  
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
