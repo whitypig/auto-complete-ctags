@@ -116,9 +116,10 @@ current one. TAGSFILE is guaranteed to be a valid tagfile."
         (search-forward needle nil t)))))
 
 (defun ac-ctags-build-tagdb (tagslist)
-  "Build completion table from TAGSLIST."
-  (loop for tags in tagsfile
-        collect (ac-ctags-build-completion-table-from-tags tags)))
+  "Build tagdb from each element of TAGSLIST."
+  (setq ac-ctags-tags-db
+        (mapcan #'ac-ctags-build-tagdb-from-tags
+                tagslist)))
 
 (defun ac-ctags-build-tagdb-from-tags (tags)
   "Build tag information db frm TAGS and return the db.
@@ -145,6 +146,10 @@ TAGS is expected to be an absolute path name."
             (setq signature (match-string-no-properties 1 line)))
           (push (list name (ac-ctags-trim-whitespace cmd) signature) db))))
     db))
+
+(defun ac-ctags-build-completion-table (tagsdb)
+  (setq ac-ctags-completion-table
+        (sort (mapcar #'car tagsdb) #'string<)))
 
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
