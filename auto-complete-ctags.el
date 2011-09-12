@@ -100,10 +100,6 @@ current one. TAGSFILE is guaranteed to be a valid tagfile."
   (push tagsfile ac-ctags-current-tags-list)
   (push ac-ctags-current-tags-list ac-ctags-tags-list-set))
 
-(defun ac-ctags-select-tags-list ()
-  "Swith to another list of tags."
-  (interactive))
-
 (defun ac-ctags-is-valid-tags-file-p (tags)
   "Return t if TAGS is valid tags file created by exuberant
   ctags."
@@ -176,6 +172,34 @@ TAGS is expected to be an absolute path name."
         ac-ctags-tags-list-set nil
         ac-ctags-tags-db nil
         ac-ctags-completion-table nil))
+
+;;;;;;;;;;;;;;;;;;;; ac-ctags-select-tags-list-mode ;;;;;;;;;;;;;;;;;;;;
+(defvar ac-ctags-select-tags-list-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map button-buffer-map)
+    (define-key map "t" 'push-button)
+    (define-key map "j" 'next-line)
+    (define-key map "k" 'previous-line)
+    (define-key map "q" 'ac-ctags-select-tags-list-quit)
+    map))
+
+(define-derived-mode ac-ctags-select-tags-list-mode fundamental-mode "Select Tags List"
+  "Major mode for selecting a current tags list.
+
+\\{ac-ctags-select-tags-list-mode-map}"
+  (setq buffer-read-only t))
+
+(defun ac-ctags-select-tags-list ()
+  "Swith to another list of tags."
+  (interactive)
+  (setq ac-ctags-window-conf (current-window-configuration))
+  (pop-to-buffer "*auto-complete-ctags*")
+  (ac-ctags-select-tags-list-mode))
+
+(defun ac-ctags-select-tags-list-quit ()
+  (interactive)
+  (quit-window t (selected-window))
+  (set-window-configuration ac-ctags-window-conf))
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
