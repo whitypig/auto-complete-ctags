@@ -1,6 +1,7 @@
 (require 'ert)
 
 (defconst test-ac-ctags-valid-tagfile "~/repos/git_repos/auto-complete-ctags/test/test.tags")
+(defconst test-ac-ctags-valid-gtest-tagfile "~/repos/git_repos/auto-complete-ctags/test/gtest.tags")
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
   "A test to check whether a tags file is created by Exuberant
@@ -90,10 +91,44 @@ this test fails."
     ;; Check if the length of each element is 3.
     (should (loop for e in db
                   do (unless (= (length e) 3) (return nil))
-                  finally return t)))))
+                  finally return t)))
+  (let* ((tags (expand-file-name test-ac-ctags-valid-gtest-tagfile))
+        (db (ac-ctags-build-tagdb-from-tags tags)))
+    (should (and (> (length db) 1)
+                 (listp db)))
+    (should (listp (car db)))
+    ;; Check if the length of each element is 3.
+    (should (loop for e in db
+                  do (unless (= (length e) 3) (return nil))
+                  finally return t))))
 
 (ert-deftest test-ac-ctags-trim-whitespace ()
   (should (string= "Hi" (ac-ctags-trim-whitespace "  	Hi")))
   (should (string= "Hi" (ac-ctags-trim-whitespace "Hi   	")))
   (should (string= "Hi" (ac-ctags-trim-whitespace "  	Hi		  ")))
   (should (string= "Hi" (ac-ctags-trim-whitespace "Hi"))))
+
+(ert-deftest test-ac-ctags-build-tagdb ()
+  (let* ((tags-list (list test-ac-ctags-valid-tagfile
+                         test-ac-ctags-valid-gtest-tagfile))
+         (db (ac-ctags-build-tagdb tags-list)))
+    (should (and (> (length db) 1)
+                 (listp db)))
+    (should (listp (car db)))
+    (should (loop for e in db
+                  do (unless (= (length e) 3) (return nil))
+                  finally return t))))
+
+(ert-deftest test-ac-ctags-build-completion-table ()
+  (let* ((db (ac-ctags-build-tagdb (list test-ac-ctags-valid-tagfile)))
+         (tbl (ac-ctags-build-completion-table db)))
+    (should (> (length tbl) 1))))
+
+(ert-deftest test-ac-ctags-get-signature ()
+  (let ((db (ac-ctags-build-tagdb (list test-ac-ctags-valid-tagfile))))
+    (should (equal '("()")
+                   (ac-ctags-get-signature "normal_func" db)))
+    (should (equal '("()")
+                   (ac-ctags-get-signature "TestClass::normal_func" db)))
+    (should (equal '("(int i)" "(double d)")
+                   (ac-ctags-get-signature "overloaded_func" db)))))
