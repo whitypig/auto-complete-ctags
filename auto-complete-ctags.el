@@ -157,5 +157,16 @@ TAGS is expected to be an absolute path name."
   (replace-regexp-in-string "[ \t]+$" ""
                             (replace-regexp-in-string "^[ \t]+" "" str)))
 
+;; todo: more accurate signatures are desirable.
+;; i.e. not `(double d)' but `void func(double d) const',
+;; but for now jsut return signature entry in tags.
+(defun ac-ctags-get-signature (name db)
+  "Return a list of signatures corresponding NAME."
+  (loop for e in db
+        when (and (string= name (car e))
+                  (not (null (caddr e))))
+        collect (caddr e)))
+                  
+
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
