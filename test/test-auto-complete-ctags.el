@@ -80,3 +80,20 @@ this test fails."
                    ac-ctags-current-tags-list))
     (should (equal '(("new.tags" "tags1") ("tags2"))
                    ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-build-tagdb-from-tags ()
+  (let* ((tags (expand-file-name test-ac-ctags-valid-tagfile))
+        (db (ac-ctags-build-tagdb-from-tags tags)))
+    (should (and (> (length db) 1)
+                 (listp db)))
+    (should (listp (car db)))
+    ;; Check if the length of each element is 3.
+    (should (loop for e in db
+                  do (unless (= (length e) 3) (return nil))
+                  finally return t)))))
+
+(ert-deftest test-ac-ctags-trim-whitespace ()
+  (should (string= "Hi" (ac-ctags-trim-whitespace "  	Hi")))
+  (should (string= "Hi" (ac-ctags-trim-whitespace "Hi   	")))
+  (should (string= "Hi" (ac-ctags-trim-whitespace "  	Hi		  ")))
+  (should (string= "Hi" (ac-ctags-trim-whitespace "Hi"))))
