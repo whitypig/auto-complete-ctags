@@ -169,5 +169,13 @@ TAGS is expected to be an absolute path name."
                   (not (null (caddr e))))
         collect (caddr e)))
 
+(defun ac-ctags-reset ()
+  "Reset tags list, set, and other data."
+  (interactive)
+  (setq ac-ctags-current-tags-list nil
+        ac-ctags-tags-list-set nil
+        ac-ctags-tags-db nil
+        ac-ctags-completion-table nil))
+
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
