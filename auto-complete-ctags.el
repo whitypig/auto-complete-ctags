@@ -25,6 +25,8 @@
 ;;; Code:
 
 (require 'auto-complete)
+(eval-when-compile
+  (require 'cl))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Customize ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defgroup auto-complete-ctags nil
@@ -44,27 +46,36 @@
 (defvar ac-ctags-tags-list-set nil
   "The set of lists of tags files.")
 
+(defvar ac-ctags-tags-db nil
+  "A list of list each of which is `(name command signature)'")
+
+(defvar ac-ctags-completion-table nil
+  "A list of names which are extracted from tags in
+  `ac-ctags-current-tags-list'.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file ()
   "Select tags file."
   (interactive)
-  (let ((tagsfile (read-file-name "Visit tags file (default tags): "
+  (let ((tagsfile (expand-file-name
+                   (read-file-name "Visit tags file (default tags): "
                                    nil
                                    "tags"
-                                   t))
+                                   t)))
         (tagslist nil))
-    (when (ac-ctags-is-valid-tags-file-p tagsfile)
-      ;; ask user whether the tags will be inserted into the current
-      ;; list or new one.
-      (setq tagslist (if (ac-ctags-create-new-list-p tagsfile)
-                         (ac-ctags-insert-into-new-list tagsfile)
-                       (ac-ctags-insert-into-current-list tagsfile)))
-      ;; Either way, we have to (re)build completion table.
-      (and (not (null tagslist))
-           (listp tagslist)
-           (ac-ctags-build-completion-table tagslist))
-      ;; Then update the current tags list.
-      (setq ac-ctags-current-tags-list tagslist))))
+    (unless (ac-ctags-is-valid-tags-file-p tagsfile)
+      (error "Invalid tags: %s is not a valid tags file" tagsfile))
+    ;; ask user whether the tags will be inserted into the current
+    ;; list or a new one, and do insert.
+    (setq tagslist (if (ac-ctags-create-new-list-p tagsfile)
+                       (ac-ctags-insert-into-new-list tagsfile)
+                     (ac-ctags-insert-into-current-list tagsfile)))
+    ;; Either way, we have to (re)build completion table.
+    (and (not (null tagslist))
+         (listp tagslist)
+         (ac-ctags-build-completion-table tagslist))
+    ;; Finally, update the current tags list.
+    (setq ac-ctags-current-tags-list tagslist)))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
@@ -104,15 +115,42 @@ current one. TAGSFILE is guaranteed to be a valid tagfile."
         (insert-file-contents-literally fullpath nil 0 500)
         (search-forward needle nil t)))))
 
-(defun ac-ctags-build-completion-table (tagslist)
+(defun ac-ctags-build-tagdb (tagslist)
   "Build completion table from TAGSLIST."
   (loop for tags in tagsfile
         collect (ac-ctags-build-completion-table-from-tags tags)))
 
-(defun ac-ctags-build-completion-table-from-tags (tags)
-  "Extract tag information for each entry in TAGS and return them
-  as a list."
-  )
+(defun ac-ctags-build-tagdb-from-tags (tags)
+  "Build tag information db frm TAGS and return the db.
+Each element of DB is a list like (name cmd signature) where NAME
+  is tag name, CMD is info constructed from EX command, and
+  SIGNATURE is as is. If NAME entry has no signature, then
+  SIGNATURE is nil.
+TAGS is expected to be an absolute path name."
+  (assert (ac-ctags-is-valid-tags-file-p tags))
+  (let ((db nil))
+    (with-temp-buffer
+      (insert-file-contents-literally tags)
+      ;; todo: How can we get the return type? `signature' in tags file
+      ;; does not contain the return type.
+      (while (re-search-forward
+              "^\\([^\t]+\\)\t[^\t]+\t/^\\([^\\$;{}]+\\)[^\t]+\\$/;\"\t.*$"
+              nil t)
+        (let (line name cmd signature)
+          (setq line (match-string-no-properties 0)
+                name (match-string-no-properties 1)
+                cmd (match-string-no-properties 2))
+          ;; If this line contains a signature, we get it.
+          (when (string-match "signature:\\([^\t\n]+\\)" line)
+            (setq signature (match-string-no-properties 1 line)))
+          (push (list name (ac-ctags-trim-whitespace cmd) signature) db))))
+    db))
+
+(defun ac-ctags-trim-whitespace (str)
+  "Trim prepending and trailing whitespaces and return the result
+  string."
+  (replace-regexp-in-string "[ \t]+$" ""
+                            (replace-regexp-in-string "^[ \t]+" "" str)))
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
