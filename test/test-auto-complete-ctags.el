@@ -127,7 +127,7 @@ ctags."
     (should (equal '("(int i)" "(double d)")
                    (ac-ctags-get-signature "overloaded_func" db)))))
 
-(ert-deftest test-ac-ctags-visit-tags-file ()
+(ert-deftest test-ac-ctags-visit-tags-file:list-is-empty ()
   (cd "~/repos/git_repos/auto-complete-ctags/test/")
   (let ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
         (default-tagsfile (expand-file-name "./tags")))
@@ -138,42 +138,86 @@ ctags."
       (should (equal `(,test-tagsfile)
                      ac-ctags-current-tags-list))
       (should (equal `(,ac-ctags-current-tags-list)
-                     ac-ctags-tags-list-set)))
-    ;; Try to insert a tags into a list which has already that tags.
-    ;; won't create a new list.
-    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
-          (ac-ctags-tags-list-set `((,test-tagsfile))))
-      (ac-ctags-visit-tags-file test-tagsfile 'current)
-      (should (equal `(,test-tagsfile)
-                     ac-ctags-current-tags-list))
-      (should (equal `(,ac-ctags-current-tags-list)
-                     ac-ctags-tags-list-set)))
+                     ac-ctags-tags-list-set)))))
+
+(ert-deftest test-ac-ctags-visit-tags-file:list-has-already-the-same-tags ()
+  ;; Try to insert a tags into a list which has already that tags.
+  ;; won't create a new list.
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+         (ac-ctags-current-tags-list `(,test-tagsfile))
+         (ac-ctags-tags-list-set `((,test-tagsfile))))
+    (ac-ctags-visit-tags-file test-tagsfile 'current)
+    (should (equal `(,test-tagsfile)
+                   ac-ctags-current-tags-list))
+    (should (equal `(,ac-ctags-current-tags-list)
+                   ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-visit-tags-file:try-to-insert-the-same-tags ()
     ;; Try to insert a tags into a new list.  Try to crate a new list,
     ;; but the elements are the same as those of
     ;; ac-ctags-current-tags-list, so actually does not create a new
     ;; list even if the answer to the create-a-new-list question is
     ;; yes.
-    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
-          (ac-ctags-tags-list-set `((,test-tagsfile))))
-      (ac-ctags-visit-tags-file test-tagsfile 'new)
-      (should (equal `(,test-tagsfile)
-                     ac-ctags-current-tags-list))
-      (should (equal `(,ac-ctags-current-tags-list)
-                     ac-ctags-tags-list-set)))
-    ;; Try to insert a new tags file into the current list which has
-    ;; one elements.
-    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
-          (ac-ctags-tags-list-set `((,test-tagsfile))))
-      (ac-ctags-visit-tags-file default-tagsfile 'current)
-      (should (equal `(,default-tagsfile ,test-tagsfile)
-                     ac-ctags-current-tags-list))
-      (should (equal `(,ac-ctags-current-tags-list)
-                     ac-ctags-tags-list-set)))
-    ;; Try to insert a tags into a new list.
-    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
-          (ac-ctags-tags-list-set `((,test-tagsfile))))
-      (ac-ctags-visit-tags-file default-tagsfile 'new)
-      (should (equal `(,default-tagsfile)
-                     ac-ctags-current-tags-list))
-      (should (equal `(,ac-ctags-current-tags-list (,test-tagsfile))
-                     ac-ctags-tags-list-set)))))
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile)))
+    (ac-ctags-visit-tags-file test-tagsfile 'new)
+    (should (equal `(,test-tagsfile)
+                   ac-ctags-current-tags-list))
+    (should (equal `(,ac-ctags-current-tags-list)
+                   ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-visit-tags-file:try-to-insert-a-new-tags-into-the-current-list ()
+  ;; Try to insert a new tags file into the current list which has
+  ;; one elements.
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
+                                (expand-file-name "./tags")))
+         (ac-ctags-current-tags-list `(,test-tagsfile))
+         (ac-ctags-tags-list-set `((,test-tagsfile))))
+    (ac-ctags-visit-tags-file default-tagsfile 'current)
+    (should (equal `(,default-tagsfile ,test-tagsfile)
+                   ac-ctags-current-tags-list))
+    (should (equal `(,ac-ctags-current-tags-list)
+                   ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-visit-tags-file:insert-tags-into-a-new-list ()
+  ;; Try to insert a tags into a new list.
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
+                                (expand-file-name "./tags")))
+         (ac-ctags-current-tags-list `(,test-tagsfile))
+         (ac-ctags-tags-list-set `((,test-tagsfile))))
+    (ac-ctags-visit-tags-file default-tagsfile 'new)
+    (should (equal `(,default-tagsfile)
+                   ac-ctags-current-tags-list))
+    (should (equal `(,ac-ctags-current-tags-list (,test-tagsfile))
+                   ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-visit-tags-file:list-A-into-AB ()
+  ;; ac-ctags-current-tags-list => (tagsB)
+  ;; ac-ctags-tags-list-set => ((tagsA) (tagsB))
+  ;; visiting tagsA
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
+                                (expand-file-name "./tags")))
+         (ac-ctags-current-tags-list `(,default-tagsfile))
+         (ac-ctags-tags-list-set `((,test-tagsfile) (,default-tagsfile))))
+    (ac-ctags-visit-tags-file test-tagsfile 'new)
+    (should (equal `(,test-tagsfile) ac-ctags-current-tags-list))
+    ;; ac-ctags-tags-list-set should stay the same.
+    (should (equal `((,test-tagsfile) (,default-tagsfile))
+                   ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-visit-tags-file:list-A-into-AB ()
+  ;; ac-ctags-current-tags-list => (tagsA)
+  ;; ac-ctags-tags-list-set => ((tagsA) (tagsB))
+  ;; visiting tagsA
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
+                                (expand-file-name "./tags")))
+         (ac-ctags-current-tags-list `(,test-tagsfile))
+         (ac-ctags-tags-list-set `((,test-tagsfile) (,default-tagsfile))))
+    (ac-ctags-visit-tags-file test-tagsfile 'new)
+    (should (equal `(,test-tagsfile) ac-ctags-current-tags-list))
+    ;; ac-ctags-tags-list-set should stay the same.
+    (should (equal `((,test-tagsfile) (,default-tagsfile))
+                   ac-ctags-tags-list-set))))
