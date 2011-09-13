@@ -1,4 +1,6 @@
 (require 'ert)
+(eval-when-compile
+  (require 'cl))
 
 (defconst test-ac-ctags-valid-tagfile "~/repos/git_repos/auto-complete-ctags/test/test.tags")
 (defconst test-ac-ctags-valid-gtest-tagfile "~/repos/git_repos/auto-complete-ctags/test/gtest.tags")
@@ -13,14 +15,6 @@ ctags."
     (should (equal t (null (ac-ctags-is-valid-tags-file-p nonexist))))
     ;; check for TAGS created by etags.
     (should (equal t (null (ac-ctags-is-valid-tags-file-p "qt.TAGS"))))))
-
-(ert-deftest test-ac-ctags-visit-tags-file ()
-  "A test for ac-ctags-visit-tags-file. No fully implemented, so
-this test fails."
-  :expected-result :failed
-  (let ((ret (call-interactively 'ac-ctags-visit-tags-file)))
-    (should (equal t (and (not (null ret))
-                          (listp ret))))))
 
 (ert-deftest test-ac-ctags-create-new-list-p ()
   "If the user chooses `yes', then the resutl should be
@@ -132,3 +126,54 @@ this test fails."
                    (ac-ctags-get-signature "TestClass::normal_func" db)))
     (should (equal '("(int i)" "(double d)")
                    (ac-ctags-get-signature "overloaded_func" db)))))
+
+(ert-deftest test-ac-ctags-visit-tags-file ()
+  (cd "~/repos/git_repos/auto-complete-ctags/test/")
+  (let ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+        (default-tagsfile (expand-file-name "./tags")))
+    ;; Try to insert a new tag into an emtpy tags list.
+    (let ((ac-ctags-current-tags-list nil)
+          (ac-ctags-tags-list-set nil))
+      (ac-ctags-visit-tags-file test-tagsfile 'new)
+      (should (equal `(,test-tagsfile)
+                     ac-ctags-current-tags-list))
+      (should (equal `(,ac-ctags-current-tags-list)
+                     ac-ctags-tags-list-set)))
+    ;; Try to insert a tags into a list which has already that tags.
+    ;; won't create a new list.
+    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
+          (ac-ctags-tags-list-set `((,test-tagsfile))))
+      (ac-ctags-visit-tags-file test-tagsfile 'current)
+      (should (equal `(,test-tagsfile)
+                     ac-ctags-current-tags-list))
+      (should (equal `(,ac-ctags-current-tags-list)
+                     ac-ctags-tags-list-set)))
+    ;; Try to insert a tags into a new list.  Try to crate a new list,
+    ;; but the elements are the same as those of
+    ;; ac-ctags-current-tags-list, so actually does not create a new
+    ;; list even if the answer to the create-a-new-list question is
+    ;; yes.
+    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
+          (ac-ctags-tags-list-set `((,test-tagsfile))))
+      (ac-ctags-visit-tags-file test-tagsfile 'new)
+      (should (equal `(,test-tagsfile)
+                     ac-ctags-current-tags-list))
+      (should (equal `(,ac-ctags-current-tags-list)
+                     ac-ctags-tags-list-set)))
+    ;; Try to insert a new tags file into the current list which has
+    ;; one elements.
+    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
+          (ac-ctags-tags-list-set `((,test-tagsfile))))
+      (ac-ctags-visit-tags-file default-tagsfile 'current)
+      (should (equal `(,default-tagsfile ,test-tagsfile)
+                     ac-ctags-current-tags-list))
+      (should (equal `(,ac-ctags-current-tags-list)
+                     ac-ctags-tags-list-set)))
+    ;; Try to insert a tags into a new list.
+    (let ((ac-ctags-current-tags-list `(,test-tagsfile))
+          (ac-ctags-tags-list-set `((,test-tagsfile))))
+      (ac-ctags-visit-tags-file default-tagsfile 'new)
+      (should (equal `(,default-tagsfile)
+                     ac-ctags-current-tags-list))
+      (should (equal `(,ac-ctags-current-tags-list (,test-tagsfile))
+                     ac-ctags-tags-list-set)))))
