@@ -54,51 +54,59 @@
   `ac-ctags-current-tags-list'.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defun ac-ctags-visit-tags-file ()
-  "Select tags file."
-  (interactive)
-  (let ((tagsfile (expand-file-name
-                   (read-file-name "Visit tags file (default tags): "
-                                   nil
-                                   "tags"
-                                   t)))
-        (tagslist nil))
+(defun ac-ctags-visit-tags-file (file &optional new)
+  "Visit tags file."
+  (interactive (list (expand-file-name
+                      (read-file-name "Visit tags file (default tags): "
+                                      nil
+                                      "tags"
+                                      t))))
+  (or (stringp file) (signal 'wrong-type-argument (list 'stringp file)))
+  (let ((tagsfile file))
     (unless (ac-ctags-is-valid-tags-file-p tagsfile)
       (error "Invalid tags: %s is not a valid tags file" tagsfile))
     ;; ask user whether the tags will be inserted into the current
     ;; list or a new one, and do insert.
-    (setq tagslist (if (ac-ctags-create-new-list-p tagsfile)
-                       (ac-ctags-insert-into-new-list tagsfile)
-                     (ac-ctags-insert-into-current-list tagsfile)))
-    ;; Either way, we have to (re)build completion table.
-    (and (not (null tagslist))
-         (listp tagslist)
-         (ac-ctags-build-completion-table tagslist))
-    ;; Finally, update the current tags list.
-    (setq ac-ctags-current-tags-list tagslist)))
+    (cond
+     ((null ac-ctags-current-tags-list)
+      (ac-ctags-insert-tags-into-current-list tagsfile))
+     ((or (eq new 'new) (and (not (eq new 'current)) (ac-ctags-create-new-list-p tagsfile)))
+      (ac-ctags-insert-tags-into-new-list tagsfile))
+     (t
+      (ac-ctags-insert-tags-into-current-list tagsfile)))
+    ;; Either way, we have to (re)build db and completion table.
+    (ac-ctags-build-tagdb ac-ctags-current-tags-list)
+    (ac-ctags-build-completion-table ac-ctags-tags-db)
+    (message "Current tags list: %s" ac-ctags-current-tags-list)))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
 current one. TAGSFILE is guaranteed to be a valid tagfile."
   ;; Check if TAGSFILE is already in the current list.
-  (if (member tagsfile ac-ctags-current-tags-list)
-      (y-or-n-p "The tags file is already in the current tags list.\nAnyway create new list? ")
+  (if (and ac-ctags-current-tags-list
+           (member tagsfile ac-ctags-current-tags-list))
+      (y-or-n-p "The tags file is already in the current tags list.\nCreate a new list? ")
     ;; If not in the list, ask the user what to do.
     (y-or-n-p "Create new tags list? ")))
 
 (defun ac-ctags-insert-tags-into-new-list (tagsfile)
-  "Insert TAGSFILE into a new tags list."
+  "Insert TAGSFILE into a new tags list and return the current
+list."
   (setq ac-ctags-current-tags-list (list tagsfile))
   (unless (member ac-ctags-current-tags-list
                   ac-ctags-tags-list-set)
-    (push ac-ctags-current-tags-list ac-ctags-tags-list-set)))
+    (push ac-ctags-current-tags-list ac-ctags-tags-list-set))
+  ac-ctags-current-tags-list)
 
 (defun ac-ctags-insert-tags-into-current-list (tagsfile)
-  "Insert TAGSFILE into the current tags list."
-  (setq ac-ctags-tags-list-set
-        (delete ac-ctags-current-tags-list ac-ctags-tags-list-set))
-  (push tagsfile ac-ctags-current-tags-list)
-  (push ac-ctags-current-tags-list ac-ctags-tags-list-set))
+  "Insert TAGSFILE into the current tags list and return the
+current list."
+  (unless (member tagsfile ac-ctags-current-tags-list)
+    (setq ac-ctags-tags-list-set
+          (delete ac-ctags-current-tags-list ac-ctags-tags-list-set))
+    (push tagsfile ac-ctags-current-tags-list)
+    (push ac-ctags-current-tags-list ac-ctags-tags-list-set)
+    ac-ctags-current-tags-list))
 
 (defun ac-ctags-is-valid-tags-file-p (tags)
   "Return t if TAGS is valid tags file created by exuberant
@@ -146,7 +154,7 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-build-completion-table (tags-db)
   "TAGS-DB must be created by ac-ctags-build-tagdb beforehand."
   (setq ac-ctags-completion-table
-        (sort (mapcar #'car tagsdb) #'string<)))
+        (sort (mapcar #'car tags-db) #'string<)))
 
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
@@ -174,14 +182,21 @@ TAGS is expected to be an absolute path name."
         ac-ctags-completion-table nil))
 
 ;;;;;;;;;;;;;;;;;;;; ac-ctags-select-tags-list-mode ;;;;;;;;;;;;;;;;;;;;
+(require 'button)
+
 (defvar ac-ctags-select-tags-list-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map button-buffer-map)
     (define-key map "t" 'push-button)
     (define-key map "j" 'next-line)
+    (define-key map "\C-i" 'next-line)
     (define-key map "k" 'previous-line)
     (define-key map "q" 'ac-ctags-select-tags-list-quit)
     map))
+
+(define-button-type 'ac-ctags-select-tags-list-button-type
+  'action 'ac-ctags-select-tags-list-select
+  'help-echo "RET, t, or mouse-2 to select tags list")
 
 (define-derived-mode ac-ctags-select-tags-list-mode fundamental-mode "Select Tags List"
   "Major mode for selecting a current tags list.
@@ -192,9 +207,56 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-select-tags-list ()
   "Swith to another list of tags."
   (interactive)
-  (setq ac-ctags-window-conf (current-window-configuration))
-  (pop-to-buffer "*auto-complete-ctags*")
-  (ac-ctags-select-tags-list-mode))
+  (let ((beg nil) (b nil))
+    (setq ac-ctags-window-conf (current-window-configuration))
+    (pop-to-buffer "*auto-complete-ctags*")
+    (erase-buffer)
+    (goto-char (point-min))
+    (insert "Type t or Enter on the list you want to use.")
+    (newline)
+    (newline)
+    (setq beg (point))
+    (setq b (point))
+    ;; First, print the current list on the top of this buffer.
+    (princ (mapcar #'abbreviate-file-name ac-ctags-current-tags-list)
+           (current-buffer))
+    (make-text-button b (point) 'type 'ac-ctags-select-tags-list-button-type
+                      'ac-ctags-tags-list ac-ctags-current-tags-list)
+    (newline)
+    ;; Then, print the rest.
+    (when (and ac-ctags-tags-list-set
+               (car ac-ctags-tags-list-set)
+               (not (null (car (remove ac-ctags-current-tags-list ac-ctags-tags-list-set)))))
+      (loop for e in (remove ac-ctags-current-tags-list ac-ctags-tags-list-set)
+            do (progn
+                 (setq b (point))
+                 (princ (mapcar #'abbreviate-file-name e) (current-buffer))
+                 (make-text-button b (point) 'type 'ac-ctags-select-tags-list-button-type
+                                   'ac-ctags-tags-list e)
+                 (newline))))
+    (goto-char beg)
+    (ac-ctags-select-tags-list-mode)))
+
+(defun ac-ctags-select-tags-list-select (button)
+  "Select the tags list on this line."
+  (interactive (list (or (button-at (line-beginning-position))
+                         (error "No tags list on the current line"))))
+  (let ((tagslist (button-get button 'ac-ctags-tags-list)))
+    (ac-ctags-select-tags-list-quit)
+    ;; If the newly selected tags list is not the same as the current
+    ;; one, we switch the current list to the new one.
+    (when (and tagslist
+               (not (equal ac-ctags-current-tags-list
+                           tagslist))
+               (ac-ctags-switch tagslist))
+      (message "Current tags list: %s" tagslist))))
+
+(defun ac-ctags-switch (tagslist)
+  (setq ac-ctags-current-tags-list tagslist)
+  (message  "ac-ctags: Building completion table...")
+  (ac-ctags-build-completion-table
+   (ac-ctags-build-tagdb tagslist))
+  (message "ac-ctags: Building completion table...done"))
 
 (defun ac-ctags-select-tags-list-quit ()
   (interactive)
