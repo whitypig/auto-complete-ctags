@@ -172,7 +172,7 @@ TAGS is expected to be an absolute path name."
     ;; todo: How can we get the return type? `signature' in tags file
     ;; does not contain the return type.
     (while (re-search-forward
-            "^\\([^\t]+\\)\t[^\t]+\t/^\\([^\\$;{}]+\\)[^\t]+\\$/;\"\t.*$"
+            "^\\([^!\t]+\\)\t[^\t]+\t\\([^\t]+\\);\".*$"
             nil t)
       (let (line name cmd (lang "Others") signature)
         (setq line (match-string-no-properties 0)
@@ -305,7 +305,7 @@ TAGS is expected to be an absolute path name."
   (quit-window t (selected-window))
   (set-window-configuration ac-ctags-window-conf))
 
-;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;; Definition of ac-source-ctags ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil)
         (tbl nil)
@@ -315,8 +315,12 @@ TAGS is expected to be an absolute path name."
     (dolist (l langs)
       (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
                         tbl)))
-    (sort tbl #'string<)
-    (sort (all-completions ac-target tbl) #'string<)))
+    (setq tbl (all-completions ac-target (sort tbl #'string<)))
+    (let ((len (length tbl)))
+      (if (and (numberp ac-ctags-candidate-limit)
+               (> len ac-ctags-candidate-limit))
+          (nbutlast tbl (- len ac-ctags-candidate-limit))
+        tbl))))
 
 (defun ac-ctags-document ()
   nil)
