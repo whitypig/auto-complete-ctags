@@ -39,6 +39,23 @@
   :type 'number
   :group 'auto-complete-ctags)
 
+(defcustom ac-ctags-mode-to-string-table
+  '((c-mode ("C"))
+    (c++-mode ("C++" "C"))
+    (java-mode ("Java"))
+    (jde-mode ("Java"))
+    (malabar-mode ("Java")))
+  "A table for mapping major-mode to its representing string."
+  :type 'list
+  :group 'auto-complete-ctags)
+
+(defface ac-ctags-candidate-face
+  '((t (:background "slate gray" :foreground "white")))
+  "Face for ctags candidate")
+
+(defface ac-ctags-selection-face
+  '((t (:background "PaleGreen4" :foreground "white")))
+  "Face for the ctags selected candidate.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar ac-ctags-current-tags-list nil
   "Current list of tags.")
@@ -85,11 +102,17 @@ alphabetically. The following is an example.
      (t
       (ac-ctags-insert-tags-into-current-list tagsfile)))
     ;; Either way, we have to (re)build db and completion table.
-    (setq db (ac-ctags-build-tagsdb ac-ctags-current-tags-list db))
+    (ac-ctags-build ac-ctags-current-tags-list)
+    (message "Current tags list: %s" ac-ctags-current-tags-list)))
+
+(defun ac-ctags-build (tagslist)
+  (let (db tbl)
+    (message  "ac-ctags: Building completion table...")
+    (setq db (ac-ctags-build-tagsdb tagslist db))
     (setq tbl (ac-ctags-build-completion-table db))
     (setq ac-ctags-tags-db db
           ac-ctags-completion-table tbl)
-    (message "Current tags list: %s" ac-ctags-current-tags-list)))
+    (message "ac-ctags: Building completion table...done")))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
@@ -275,15 +298,40 @@ TAGS is expected to be an absolute path name."
 
 (defun ac-ctags-switch (tagslist)
   (setq ac-ctags-current-tags-list tagslist)
-  (message  "ac-ctags: Building completion table...")
-  (ac-ctags-build-completion-table
-   (ac-ctags-build-tagdb tagslist))
-  (message "ac-ctags: Building completion table...done"))
+  (ac-ctags-build tagslist))
 
 (defun ac-ctags-select-tags-list-quit ()
   (interactive)
   (quit-window t (selected-window))
   (set-window-configuration ac-ctags-window-conf))
+
+;;;;;;;;;;;;;;;;;;;;
+(defun ac-ctags-candidates ()
+  (let ((candidates nil)
+        (tbl nil)
+        (langs (or (cadr (assoc major-mode
+                                ac-ctags-mode-to-string-table))
+                   '("Others"))))
+    (dolist (l langs)
+      (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
+                        tbl)))
+    (sort tbl #'string<)
+    (sort (all-completions ac-target tbl) #'string<)))
+
+(defun ac-ctags-document ()
+  nil)
+
+(defun ac-ctags-prefix ()
+  (ac-prefix-symbol))
+
+;; ac-source-ctags
+(ac-define-source ctags
+  '((candidates . ac-ctags-candidates)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (document . ac-ctags-document)
+    (requires . 2)
+    (prefix . ac-ctags-prefix)))
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
