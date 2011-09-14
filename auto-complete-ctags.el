@@ -72,7 +72,7 @@ alphabetically. The following is an example.
                                       "tags"
                                       t))))
   (or (stringp file) (signal 'wrong-type-argument (list 'stringp file)))
-  (let ((tagsfile file))
+  (let ((tagsfile file) db tbl)
     (unless (ac-ctags-is-valid-tags-file-p tagsfile)
       (error "Invalid tags: %s is not a valid tags file" tagsfile))
     ;; ask user whether the tags will be inserted into the current
@@ -85,8 +85,10 @@ alphabetically. The following is an example.
      (t
       (ac-ctags-insert-tags-into-current-list tagsfile)))
     ;; Either way, we have to (re)build db and completion table.
-    (ac-ctags-build-tagdb ac-ctags-current-tags-list)
-    (ac-ctags-build-completion-table ac-ctags-tags-db)
+    (setq db (ac-ctags-build-tagsdb ac-ctags-current-tags-list db))
+    (setq tbl (ac-ctags-build-completion-table db))
+    (setq ac-ctags-tags-db db
+          ac-ctags-completion-table tbl)
     (message "Current tags list: %s" ac-ctags-current-tags-list)))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
