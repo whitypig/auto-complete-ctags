@@ -47,11 +47,21 @@
   "The set of lists of tags files.")
 
 (defvar ac-ctags-tags-db nil
-  "A list of list each of which is `(name command signature)'")
+  "An association list with keys being languages and values being
+the information extracted from tags file created by ctags
+program. The following is an example:
+`((\"C++\" (name command signature)...)
+  (\"C\" (name command signature)...)
+  (\"Java\" (name command signature)...)
+  (\"Others\" (name command signature)...)'")
 
 (defvar ac-ctags-completion-table nil
-  "A list of names which are extracted from tags in
-  `ac-ctags-current-tags-list'.")
+  "An association list with keys being languages and values being
+tag names in tags files. The values should be sorted by
+alphabetically. The following is an example.
+`((\"C++\" (name1 name2 name3...))
+  (\"Java\" (name1 name2 name3...))
+  (\"Others\" (name1 name2 name3)))'")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file (file &optional new)
@@ -119,13 +129,12 @@ current list."
         (insert-file-contents-literally fullpath nil 0 500)
         (search-forward needle nil t)))))
 
-(defun ac-ctags-build-tagdb (tagslist)
-  "Build tagdb from each element of TAGSLIST."
-  (setq ac-ctags-tags-db
-        (mapcan #'ac-ctags-build-tagdb-from-tags
-                tagslist)))
+(defun ac-ctags-build-tagsdb (tags-list tags-db)
+  "Build tagsdb from each element of TAGSLIST."
+  (dolist (e tags-list tags-db)
+    (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))))
 
-(defun ac-ctags-build-tagdb-from-tags (tags)
+(defun ac-ctags-build-tagsdb-from-tags (tags tags-db)
   "Build tag information db frm TAGS and return the db.
 Each element of DB is a list like (name cmd signature) where NAME
   is tag name, CMD is info constructed from EX command, and
@@ -133,28 +142,39 @@ Each element of DB is a list like (name cmd signature) where NAME
   SIGNATURE is nil.
 TAGS is expected to be an absolute path name."
   (assert (ac-ctags-is-valid-tags-file-p tags))
-  (let ((db nil))
-    (with-temp-buffer
-      (insert-file-contents-literally tags)
-      ;; todo: How can we get the return type? `signature' in tags file
-      ;; does not contain the return type.
-      (while (re-search-forward
-              "^\\([^\t]+\\)\t[^\t]+\t/^\\([^\\$;{}]+\\)[^\t]+\\$/;\"\t.*$"
-              nil t)
-        (let (line name cmd signature)
-          (setq line (match-string-no-properties 0)
-                name (match-string-no-properties 1)
-                cmd (match-string-no-properties 2))
-          ;; If this line contains a signature, we get it.
-          (when (string-match "signature:\\([^\t\n]+\\)" line)
-            (setq signature (match-string-no-properties 1 line)))
-          (push (list name (ac-ctags-trim-whitespace cmd) signature) db))))
-    db))
+  (with-temp-buffer
+    (insert-file-contents-literally tags)
+    ;; todo: How can we get the return type? `signature' in tags file
+    ;; does not contain the return type.
+    (while (re-search-forward
+            "^\\([^\t]+\\)\t[^\t]+\t/^\\([^\\$;{}]+\\)[^\t]+\\$/;\"\t.*$"
+            nil t)
+      (let (line name cmd (lang "Others") signature)
+        (setq line (match-string-no-properties 0)
+              name (match-string-no-properties 1)
+              cmd (match-string-no-properties 2))
+        ;; If this line contains a language information, we get it.
+        (when (string-match "language:\\([^\t\n]+\\)" line)
+          (setq lang (match-string-no-properties 1 line)))
+        ;; If this line contains a signature, we get it.
+        (when (string-match "signature:\\([^\t\n]+\\)" line)
+          (setq signature (match-string-no-properties 1 line)))
+        (if (assoc lang tags-db)
+            (push (list name (ac-ctags-trim-whitespace cmd) signature)
+                  (cdr (assoc lang tags-db)))
+          (push `(,lang (,name ,(ac-ctags-trim-whitespace cmd) ,signature))
+                tags-db)))))
+  tags-db)
 
 (defun ac-ctags-build-completion-table (tags-db)
   "TAGS-DB must be created by ac-ctags-build-tagdb beforehand."
-  (setq ac-ctags-completion-table
-        (sort (mapcar #'car tags-db) #'string<)))
+  (let ((tbl nil))
+    (dolist (db tags-db)
+      (let ((lang (car db)) (names (sort (mapcar #'car (cdr db)) #'string<)))
+        (if (assoc lang tbl)
+            (push names (cdr (assoc lang tbl)))
+          (push `(,lang ,names) tbl))))
+    tbl))
 
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
@@ -164,10 +184,10 @@ TAGS is expected to be an absolute path name."
 
 ;; todo: more accurate signatures are desirable.
 ;; i.e. not `(double d)' but `void func(double d) const',
-;; but for now jsut return signature entry in tags.
-(defun ac-ctags-get-signature (name db)
+;; but for now just return signature entry in tags.
+(defun ac-ctags-get-signature (name db lang)
   "Return a list of signatures corresponding NAME."
-  (loop for e in db
+  (loop for e in (cdr (assoc lang db))
         ;; linear searching is not what I want to use...
         when (and (string= name (car e))
                   (not (null (caddr e))))
