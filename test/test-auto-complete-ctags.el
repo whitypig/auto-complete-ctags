@@ -2,36 +2,39 @@
 (eval-when-compile
   (require 'cl))
 
-(defconst test-ac-ctags-valid-tagfile "~/repos/git_repos/auto-complete-ctags/test/test.tags")
+(defconst test-ac-ctags-valid-tagfile "~/repos/git_repos/auto-complete-ctags/test/cpp.tags")
 (defconst test-ac-ctags-valid-gtest-tagfile "~/repos/git_repos/auto-complete-ctags/test/gtest.tags")
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
   "A test to check whether a tags file is created by Exuberant
 ctags."
-  (let ((tags (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
-                   "./test.tags"))
+  (let ((tags test-ac-ctags-valid-tagfile)
         (nonexist "./tags"))
-    (should (equal t (numberp (ac-ctags-is-valid-tags-file-p tags))))
-    (should (equal t (null (ac-ctags-is-valid-tags-file-p nonexist))))
+    (should (numberp (ac-ctags-is-valid-tags-file-p tags)))
+    (should (null (ac-ctags-is-valid-tags-file-p nonexist)))
     ;; check for TAGS created by etags.
-    (should (equal t (null (ac-ctags-is-valid-tags-file-p "qt.TAGS"))))))
+    (should (null (ac-ctags-is-valid-tags-file-p "qt.TAGS")))))
 
 (ert-deftest test-ac-ctags-create-new-list-p ()
   "If the user chooses `yes', then the resutl should be
   `t'. Otherwise nil."
   (let ((tags test-ac-ctags-valid-tagfile))
     ;; The answer is to create new one.
-    (should (equal t (ac-ctags-create-new-list-p tags)))
+    ;; You have to answer `yes'
+    (should (ac-ctags-create-new-list-p tags))
     ;; The answer is to use the current one.
-    (should (equal nil (ac-ctags-create-new-list-p tags)))
+    ;; You have to answer `no'
+    (should (null (ac-ctags-create-new-list-p tags)))
     ;; tags is already in the current list and the answer is to create
     ;; new one.
-    (should (equal t (let ((ac-ctags-current-tags-list (list tags)))
-                       (ac-ctags-create-new-list-p tags))))
+    ;; You have to answer `yes'
+    (should (let ((ac-ctags-current-tags-list (list tags)))
+              (ac-ctags-create-new-list-p tags)))
     ;; tags is already in the current list and the answer is to use
     ;; the current.
-    (should (equal nil (let ((ac-ctags-current-tags-list (list tags)))
-                         (ac-ctags-create-new-list-p tags))))))
+    ;; You have to answer `no'
+    (should (null (let ((ac-ctags-current-tags-list (list tags)))
+                    (ac-ctags-create-new-list-p tags))))))
 
 (ert-deftest test-ac-ctags-insert-tags-into-new-list ()
   (let ((ac-ctags-current-tags-list nil)
@@ -77,24 +80,30 @@ ctags."
                    ac-ctags-tags-list-set))))
 
 (ert-deftest test-ac-ctags-build-tagdb-from-tags ()
-  (let* ((tags (expand-file-name test-ac-ctags-valid-tagfile))
-        (db (ac-ctags-build-tagdb-from-tags tags)))
-    (should (and (> (length db) 1)
-                 (listp db)))
+  (let* ((ac-ctags-tags-db nil)
+         (tags (expand-file-name test-ac-ctags-valid-tagfile))
+         (db (ac-ctags-build-tagdb-from-tags tags)))
+    (should (listp db))
+    (should (not (null db)))
+    (should (> (length db) 0))
     (should (listp (car db)))
+    (should (> (length (car db)) 1))
+    (should (not (null (cdar db))))
+    (should (listp (cdar db)))
     ;; Check if the length of each element is 3.
-    (should (loop for e in db
+    (should (loop for e in (cdar db)
                   do (unless (= (length e) 3) (return nil))
                   finally return t)))
-  (let* ((tags (expand-file-name test-ac-ctags-valid-gtest-tagfile))
-        (db (ac-ctags-build-tagdb-from-tags tags)))
-    (should (and (> (length db) 1)
-                 (listp db)))
-    (should (listp (car db)))
-    ;; Check if the length of each element is 3.
-    (should (loop for e in db
-                  do (unless (= (length e) 3) (return nil))
-                  finally return t))))
+  ;; (let* ((tags (expand-file-name test-ac-ctags-valid-gtest-tagfile))
+  ;;       (db (ac-ctags-build-tagdb-from-tags tags)))
+  ;;   (should (and (> (length db) 1)
+  ;;                (listp db)))
+  ;;   (should (listp (car db)))
+  ;;   ;; Check if the length of each element is 3.
+  ;;   (should (loop for e in db
+  ;;                 do (unless (= (length e) 4) (return nil))
+  ;;                 finally return t)))
+  )
 
 (ert-deftest test-ac-ctags-trim-whitespace ()
   (should (string= "Hi" (ac-ctags-trim-whitespace "  	Hi")))
