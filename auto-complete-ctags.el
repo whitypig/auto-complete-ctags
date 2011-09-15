@@ -185,9 +185,11 @@ TAGS is expected to be an absolute path name."
         (when (string-match "signature:\\([^\t\n]+\\)" line)
           (setq signature (match-string-no-properties 1 line)))
         (if (assoc lang tags-db)
-            (push (list name (ac-ctags-trim-whitespace cmd) signature)
+            (push `(,name ,(ac-ctags-trim-whitespace
+                            (ac-ctags-strip cmd)) ,signature)
                   (cdr (assoc lang tags-db)))
-          (push `(,lang (,name ,(ac-ctags-trim-whitespace cmd) ,signature))
+          (push `(,lang (,name ,(ac-ctags-trim-whitespace
+                                 (ac-ctags-strip cmd)) ,signature))
                 tags-db)))))
   tags-db)
 
@@ -206,6 +208,11 @@ TAGS is expected to be an absolute path name."
   string."
   (replace-regexp-in-string "[ \t]+$" ""
                             (replace-regexp-in-string "^[ \t]+" "" str)))
+
+(defun ac-ctags-strip (str)
+  (let ((ret (replace-regexp-in-string "^/^" ""
+                                       (replace-regexp-in-string "\\$/$" "" str))))
+    (replace-regexp-in-string ";$" "" ret)))
 
 ;; todo: more accurate signatures are desirable.
 ;; i.e. not `(double d)' but `void func(double d) const',
