@@ -80,6 +80,10 @@ alphabetically. The following is an example.
   (\"Java\" (name1 name2 name3...))
   (\"Others\" (name1 name2 name3)))'")
 
+(defvar ac-ctags-prefix-funtion-table
+  '((c++-mode . ac-ctags-c++-prefix))
+  "A table of prefix functions for a specific major mode.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file (file &optional new)
   "Visit tags file."
@@ -322,18 +326,76 @@ TAGS is expected to be an absolute path name."
     (dolist (l langs)
       (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
                         tbl)))
-    (setq tbl (all-completions ac-target (sort tbl #'string<)))
+    (setq tbl (all-completions ac-target (sort (append (ac-ctags-same-mode-candidate)
+                                                       tbl) #'string<)))
     (let ((len (length tbl)))
       (if (and (numberp ac-ctags-candidate-limit)
                (> len ac-ctags-candidate-limit))
           (nbutlast tbl (- len ac-ctags-candidate-limit))
         tbl))))
 
+(defun ac-ctags-same-mode-candidate ()
+  (ac-word-candidates
+   (lambda (buffer)
+     (derived-mode-p (buffer-local-value 'major-mode buffer)))))
+
 (defun ac-ctags-document ()
   nil)
 
 (defun ac-ctags-prefix ()
-  (ac-prefix-symbol))
+  (funcall (ac-ctags-get-prefix-function major-mode ac-ctags-prefix-funtion-table)))
+
+(defun ac-ctags-c++-prefix ()
+  (let ((c (char-before))
+        (bol (save-excursion (beginning-of-line) (point))))
+    (cond
+     ((and (characterp c) (char-equal c ?:))
+      ;; Has just entered `::' ?
+      (when (and (char-before (1- (point)))
+                 (char-equal (char-before (1- (point))) ?:))
+        (save-excursion
+          (ac-ctags-skip-delim-backward)
+          (if (and (= (point) bol)
+                   (ac-ctags-double-colon-p (point)))
+              (+ 2 (point))
+            (point)))))
+     ;; There is `::' on the currently-editing line,
+     ;; and has just entered a character other than `:'.
+     ((save-excursion
+        (re-search-backward "::"
+                            (save-excursion
+                              (ac-ctags-skip-delim-backward)
+                              (point))
+                            t))
+      (save-excursion
+        (ac-ctags-skip-delim-backward)
+        (if (ac-ctags-double-colon-p (point))
+            (+ 2 (point))
+          (point))))
+     (t (ac-prefix-symbol)))))
+
+(defun ac-ctags-skip-delim-backward ()
+  (let ((bol (save-excursion (beginning-of-line) (point)))
+        (cont t))
+    (while (and cont (search-backward "::" bol t))
+      (when (and (char-before) (string-match "[[:alpha:]]" (string (char-before))))
+        ;; skip a namespace
+        (skip-chars-backward "^ \t;()<>" bol)
+        (setq cont nil)))))
+
+(defun ac-ctags-double-colon-p (pos)
+  "Return t if characters at position POS and POS+1 are colons."
+  (let ((c1 (char-after pos))
+        (c2 (char-after (1+ pos))))
+    (and (characterp c1)
+         (characterp c2)
+         (char-equal c1 ?:)
+         (char-equal c2 ?:))))
+
+(defun ac-ctags-get-prefix-function (mode table)
+  (let ((f (assoc mode table)))
+    (if f (cdr f)
+      #'ac-prefix-symbol)))
 
 ;; ac-source-ctags
 (ac-define-source ctags
