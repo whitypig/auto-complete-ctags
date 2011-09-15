@@ -12,7 +12,7 @@
   "A test to check whether a tags file is created by Exuberant
 ctags."
   (let ((tags test-ac-ctags-valid-tagfile)
-        (nonexist "./tags"))
+        (nonexist "./non.tags"))
     (should (numberp (ac-ctags-is-valid-tags-file-p tags)))
     (should (null (ac-ctags-is-valid-tags-file-p nonexist)))
     ;; check for TAGS created by etags.
@@ -241,7 +241,9 @@ ctags."
     ;; ac-ctags-current-tags-list, so actually does not create a new
     ;; list even if the answer to the create-a-new-list question is
     ;; yes.
-  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile)))
+  (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
+         (ac-ctags-current-tags-list nil)
+         (ac-ctags-tags-list-set nil))
     (ac-ctags-visit-tags-file test-tagsfile 'new)
     (should (equal `(,test-tagsfile)
                    ac-ctags-current-tags-list))
