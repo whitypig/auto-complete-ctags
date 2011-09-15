@@ -206,7 +206,9 @@ ctags."
     (should (equal '("()")
                    (ac-ctags-get-signature "TestClass::normal_func" db "C++")))
     (should (equal '("(int i)" "(double d)")
-                   (ac-ctags-get-signature "overloaded_func" db "C++")))))
+                   (ac-ctags-get-signature "overloaded_func" db "C++")))
+    (should (null (ac-ctags-get-signature "TestClass" db "C++")))
+    (should (null (ac-ctags-get-signature "nonexist" db "C++")))))
 
 (ert-deftest test-ac-ctags-visit-tags-file:list-is-empty ()
   (cd "~/repos/git_repos/auto-complete-ctags/test/")
