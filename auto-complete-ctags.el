@@ -44,7 +44,8 @@
     (c++-mode ("C++" "C"))
     (java-mode ("Java"))
     (jde-mode ("Java"))
-    (malabar-mode ("Java")))
+    (malabar-mode ("Java"))
+    (php-mode ("PHP")))
   "A table for mapping major-mode to its representing string."
   :type 'list
   :group 'auto-complete-ctags)
@@ -176,12 +177,13 @@ TAGS is expected to be an absolute path name."
     ;; todo: How can we get the return type? `signature' in tags file
     ;; does not contain the return type.
     (while (re-search-forward
-            "^\\([^!\t]+\\)\t[^\t]+\t\\([^\t]+\\);\".*$"
+            "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
             nil t)
       (let (line name cmd (lang "Others") signature)
         (setq line (match-string-no-properties 0)
               name (match-string-no-properties 1)
-              cmd (match-string-no-properties 2))
+              cmd (ac-ctags-trim-whitespace
+                   (ac-ctags-strip-cmd (match-string-no-properties 2))))
         ;; If this line contains a language information, we get it.
         (when (string-match "language:\\([^\t\n]+\\)" line)
           (setq lang (match-string-no-properties 1 line)))
@@ -189,11 +191,9 @@ TAGS is expected to be an absolute path name."
         (when (string-match "signature:\\([^\t\n]+\\)" line)
           (setq signature (match-string-no-properties 1 line)))
         (if (assoc lang tags-db)
-            (push `(,name ,(ac-ctags-trim-whitespace
-                            (ac-ctags-strip cmd)) ,signature)
+            (push `(,name ,cmd ,signature)
                   (cdr (assoc lang tags-db)))
-          (push `(,lang (,name ,(ac-ctags-trim-whitespace
-                                 (ac-ctags-strip cmd)) ,signature))
+          (push `(,lang (,name ,cmd ,signature))
                 tags-db)))))
   tags-db)
 
@@ -213,7 +213,7 @@ TAGS is expected to be an absolute path name."
   (replace-regexp-in-string "[ \t]+$" ""
                             (replace-regexp-in-string "^[ \t]+" "" str)))
 
-(defun ac-ctags-strip (str)
+(defun ac-ctags-strip-cmd (str)
   (let ((ret (replace-regexp-in-string "^/^" ""
                                        (replace-regexp-in-string "\\$/$" "" str))))
     (replace-regexp-in-string ";$" "" ret)))
