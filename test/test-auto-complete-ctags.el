@@ -1,12 +1,13 @@
+(load "../auto-complete-ctags.el")
 (require 'ert)
 (eval-when-compile
   (require 'cl))
 
-(defconst test-ac-ctags-valid-tagfile "~/repos/git_repos/auto-complete-ctags/test/cpp.tags")
-(defconst test-ac-ctags-valid-gtest-tagfile "~/repos/git_repos/auto-complete-ctags/test/gtest.tags")
-(defconst test-ac-ctags-cpp-tagsfile "~/repos/git_repos/auto-complete-ctags/test/cpp.tags")
-(defconst test-ac-ctags-java-tagsfile "~/repos/git_repos/auto-complete-ctags/test/java.tags")
-(defconst test-ac-ctags-c-tagsfile "~/repos/git_repos/auto-complete-ctags/test/c.tags")
+(defconst test-ac-ctags-valid-tagfile "cpp.tags")
+(defconst test-ac-ctags-valid-gtest-tagfile "gtest.tags")
+(defconst test-ac-ctags-cpp-tagsfile "cpp.tags")
+(defconst test-ac-ctags-java-tagsfile "java.tags")
+(defconst test-ac-ctags-c-tagsfile "c.tags")
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
   "A test to check whether a tags file is created by Exuberant
@@ -16,7 +17,7 @@ ctags."
     (should (numberp (ac-ctags-is-valid-tags-file-p tags)))
     (should (null (ac-ctags-is-valid-tags-file-p nonexist)))
     ;; check for TAGS created by etags.
-    (should (null (ac-ctags-is-valid-tags-file-p "qt.TAGS")))))
+    (should (null (ac-ctags-is-valid-tags-file-p "e.TAGS")))))
 
 (ert-deftest test-ac-ctags-create-new-list-p ()
   "If the user chooses `yes', then the resutl should be
@@ -254,8 +255,7 @@ ctags."
   ;; Try to insert a new tags file into the current list which has
   ;; one elements.
   (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
-         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
-                                (expand-file-name "./c.tags")))
+         (default-tagsfile (expand-file-name "./c.tags"))
          (ac-ctags-current-tags-list `(,test-tagsfile))
          (ac-ctags-tags-list-set `((,test-tagsfile))))
     (ac-ctags-visit-tags-file default-tagsfile 'current)
@@ -267,8 +267,7 @@ ctags."
 (ert-deftest test-ac-ctags-visit-tags-file:insert-tags-into-a-new-list ()
   ;; Try to insert a tags into a new list.
   (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
-         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
-                                (expand-file-name "./tags")))
+         (default-tagsfile (expand-file-name "./tags"))
          (ac-ctags-current-tags-list `(,test-tagsfile))
          (ac-ctags-tags-list-set `((,test-tagsfile))))
     (ac-ctags-visit-tags-file default-tagsfile 'new)
@@ -282,8 +281,7 @@ ctags."
   ;; ac-ctags-tags-list-set => ((tagsA) (tagsB))
   ;; visiting tagsA
   (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
-         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
-                                (expand-file-name "./tags")))
+         (default-tagsfile (expand-file-name "./tags"))
          (ac-ctags-current-tags-list `(,default-tagsfile))
          (ac-ctags-tags-list-set `((,test-tagsfile) (,default-tagsfile))))
     (ac-ctags-visit-tags-file test-tagsfile 'new)
@@ -297,8 +295,7 @@ ctags."
   ;; ac-ctags-tags-list-set => ((tagsA) (tagsB))
   ;; visiting tagsA
   (let* ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
-         (default-tagsfile (and (cd "~/repos/git_repos/auto-complete-ctags/test/")
-                                (expand-file-name "./tags")))
+         (default-tagsfile (and (expand-file-name "./tags")))
          (ac-ctags-current-tags-list `(,test-tagsfile))
          (ac-ctags-tags-list-set `((,test-tagsfile) (,default-tagsfile))))
     (ac-ctags-visit-tags-file test-tagsfile 'new)
@@ -306,3 +303,11 @@ ctags."
     ;; ac-ctags-tags-list-set should stay the same.
     (should (equal `((,test-tagsfile) (,default-tagsfile))
                    ac-ctags-tags-list-set))))
+
+(ert-deftest test-ac-ctags-strip-cmd ()
+  (let ((cmd "public function EscapeToken($token, $chars = null) {"))
+    (should (string= "public function EscapeToken($token, $chars = null) {"
+                     (ac-ctags-strip-cmd cmd))))
+  (let ((cmd "/^		$xmlText = '<' . '?xml version=\"1.0\" encoding=\"UTF-8\"?><tags><tag><id>1<\/id><name>defect<\/name><\/tag><tag><id>2<\/id><name>enhancement<\/name><\/tag><\/tags>';$/"))
+    (should (string= "		$xmlText = '<' . '?xml version=\"1.0\" encoding=\"UTF-8\"?><tags><tag><id>1<\/id><name>defect<\/name><\/tag><tag><id>2<\/id><name>enhancement<\/name><\/tag><\/tags>'"
+                     (ac-ctags-strip-cmd cmd)))))
