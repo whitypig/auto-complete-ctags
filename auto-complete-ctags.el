@@ -380,7 +380,7 @@ TAGS is expected to be an absolute path name."
     (while (and cont (search-backward "::" bol t))
       (when (and (char-before) (string-match "[[:alpha:]]" (string (char-before))))
         ;; skip a namespace
-        (skip-chars-backward "^ \t;()<>" bol)
+        (skip-chars-backward "^* \t;()<>" bol)
         (setq cont nil)))))
 
 (defun ac-ctags-double-colon-p (pos)
