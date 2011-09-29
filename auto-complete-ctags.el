@@ -50,6 +50,11 @@
   :type 'list
   :group 'auto-complete-ctags)
 
+(defcustom ac-ctags-vector-default-size 1023
+  "The default size of vector used as completion table"
+  :type 'number
+  :group 'auto-complete-ctags)
+
 (defface ac-ctags-candidate-face
   '((t (:background "slate gray" :foreground "white")))
   "Face for ctags candidate")
@@ -78,9 +83,9 @@ program. The following is an example:
   "An association list with keys being a language and values being a
 vector containing tag names in tags files. The following is an
 example.
-`((\"C++\" [name1 name2 name3...])
-  (\"Java\" [name1 name2 name3...])
-  (\"Others\" [name1 name2 name3)])'")
+`((\"C++\" . [name1 name2 name3...])
+  (\"Java\" . [name1 name2 name3...])
+  (\"Others\" . [name1 name2 name3)])'")
 
 (defvar ac-ctags-current-completion-table nil
   "")
@@ -202,14 +207,20 @@ TAGS is expected to be an absolute path name."
                 tags-db)))))
   tags-db)
 
+;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
   "TAGS-DB must be created by ac-ctags-build-tagdb beforehand."
   (let ((tbl nil))
     (dolist (db tags-db)
-      (let ((lang (car db)) (names (sort (mapcar #'car (cdr db)) #'string<)))
+      ;; Create completion table for each language.
+      (let ((lang (car db)) (names (mapcar #'car (cdr db))))
         (if (assoc lang tbl)
-            (push names (cdr (assoc lang tbl)))
-          (push `(,lang ,names) tbl))))
+            ;; intern each name into the vector
+            (mapc (lambda (name) (intern name (cdr (assoc lang tbl))))
+                  names)
+          (let ((vec (make-vector ac-ctags-vector-default-size 0)))
+            (mapc (lambda (name) (intern name vec)) names)
+            (push (cons lang vec) tbl)))))
     tbl))
 
 (defun ac-ctags-trim-whitespace (str)
