@@ -180,7 +180,7 @@ TAGS is expected to be an absolute path name."
     ;; todo: How can we get the return type? `signature' in tags file
     ;; does not contain the return type.
     (while (re-search-forward
-            "^\\([^!\t]\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
+            "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
             nil t)
       (let (line name cmd (lang "Others") signature)
         (setq line (match-string-no-properties 0)
@@ -332,14 +332,11 @@ TAGS is expected to be an absolute path name."
         (langs (or (cadr (assoc major-mode
                                 ac-ctags-mode-to-string-table))
                    '("Others"))))
-    ;; If a completion table has already been created for the current
-    ;; major mode, we create a new one.
-    (unless (ac-ctags-check-current-completion-table ac-ctags-current-completion-table)
-      (dolist (l langs)
-        (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
-                          tbl))))
-      ;; workaround to prevent same-mode-candidates from being excluded
-      ;; from candidates.
+    (dolist (l langs)
+      (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
+                        tbl)))
+    ;; Workaround to include same-mode-candidates and
+    ;; ac-dictionary-candidates, which I think are essential.
     (setq tbl (all-completions ac-target
                                (sort (append (ac-ctags-same-mode-candidate)
                                              ac-ctags-current-completion-table)
@@ -349,9 +346,6 @@ TAGS is expected to be an absolute path name."
                (> len ac-ctags-candidate-limit))
           (nbutlast tbl (- len ac-ctags-candidate-limit))
         tbl))))
-
-(defun ac-ctags-check-current-completion-table (table)
-  t)
 
 (defun ac-ctags-same-mode-candidate ()
   (ac-word-candidates
