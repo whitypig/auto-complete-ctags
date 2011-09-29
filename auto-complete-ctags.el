@@ -81,6 +81,9 @@ alphabetically. The following is an example.
   (\"Java\" (name1 name2 name3...))
   (\"Others\" (name1 name2 name3)))'")
 
+(defvar ac-ctags-current-completion-table nil
+  "")
+
 (defvar ac-ctags-prefix-funtion-table
   '((c++-mode . ac-ctags-c++-prefix))
   "A table of prefix functions for a specific major mode.")
@@ -177,7 +180,7 @@ TAGS is expected to be an absolute path name."
     ;; todo: How can we get the return type? `signature' in tags file
     ;; does not contain the return type.
     (while (re-search-forward
-            "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
+            "^\\([^!\t]\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
             nil t)
       (let (line name cmd (lang "Others") signature)
         (setq line (match-string-no-properties 0)
@@ -227,7 +230,13 @@ TAGS is expected to be an absolute path name."
         ;; linear searching is not what I want to use...
         when (and (string= name (car e))
                   (not (null (caddr e))))
-        collect (caddr e)))
+        collect (concat name (caddr e))))
+
+(defun ac-ctags-get-signature-by-mode (name db mode)
+  (let ((langs (cadr (assoc mode ac-ctags-mode-to-string-table))))
+    (when langs
+      (loop for lang in langs
+            collect (ac-ctags-get-signature name db lang)))))
 
 (defun ac-ctags-reset ()
   "Reset tags list, set, and other data."
@@ -323,16 +332,26 @@ TAGS is expected to be an absolute path name."
         (langs (or (cadr (assoc major-mode
                                 ac-ctags-mode-to-string-table))
                    '("Others"))))
-    (dolist (l langs)
-      (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
-                        tbl)))
-    (setq tbl (all-completions ac-target (sort (append (ac-ctags-same-mode-candidate)
-                                                       tbl) #'string<)))
+    ;; If a completion table has already been created for the current
+    ;; major mode, we create a new one.
+    (unless (ac-ctags-check-current-completion-table ac-ctags-current-completion-table)
+      (dolist (l langs)
+        (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
+                          tbl))))
+      ;; workaround to prevent same-mode-candidates from being excluded
+      ;; from candidates.
+    (setq tbl (all-completions ac-target
+                               (sort (append (ac-ctags-same-mode-candidate)
+                                             ac-ctags-current-completion-table)
+                                     #'string<)))
     (let ((len (length tbl)))
       (if (and (numberp ac-ctags-candidate-limit)
                (> len ac-ctags-candidate-limit))
           (nbutlast tbl (- len ac-ctags-candidate-limit))
         tbl))))
+
+(defun ac-ctags-check-current-completion-table (table)
+  t)
 
 (defun ac-ctags-same-mode-candidate ()
   (ac-word-candidates
