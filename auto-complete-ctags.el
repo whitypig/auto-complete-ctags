@@ -340,7 +340,7 @@ TAGS is expected to be an absolute path name."
     ;; ac-dictionary-candidates, which I think are essential.
     (setq tbl (all-completions ac-target
                                (sort (append (ac-ctags-same-mode-candidate)
-                                             ac-ctags-current-completion-table)
+                                             tbl)
                                      #'string<)))
     (let ((len (length tbl)))
       (if (and (numberp ac-ctags-candidate-limit)
