@@ -341,29 +341,38 @@ TAGS is expected to be an absolute path name."
 ;;;;;;;;;;;;;;;;;;;; Definition of ac-source-ctags ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil)
-        (tbl nil)
+        (tbl (make-vector ac-ctags-vector-default-size 0))
         (langs (or (cadr (assoc major-mode
                                 ac-ctags-mode-to-string-table))
                    '("Others"))))
+    ;; Combine elements in completion tables
     (dolist (l langs)
-      (setq tbl (append (cadr (assoc l ac-ctags-completion-table))
-                        tbl)))
+      (when (cdr (assoc l ac-ctags-completion-table))
+        (mapatoms (lambda (sym)
+                    (intern (symbol-name sym) tbl))
+                  (cdr (assoc l ac-ctags-completion-table)))))
     ;; Workaround to include same-mode-candidates and
     ;; ac-dictionary-candidates, which I think are essential.
-    (setq tbl (all-completions ac-target
-                               (sort (append (ac-ctags-same-mode-candidate)
-                                             tbl)
-                                     #'string<)))
-    (let ((len (length tbl)))
+    (setq candidates (all-completions ac-target
+                                      tbl))
+    (setq candidates (append (ac-ctags-same-mode-candidates)
+                             candidates))
+    (setq candidates (sort (append (ac-ctags-buffer-dictionary-candidates)
+                                   candidates)
+                           #'string<))
+    (let ((len (length candidates)))
       (if (and (numberp ac-ctags-candidate-limit)
                (> len ac-ctags-candidate-limit))
-          (nbutlast tbl (- len ac-ctags-candidate-limit))
-        tbl))))
+          (nbutlast candidates (- len ac-ctags-candidate-limit))
+        candidates))))
 
-(defun ac-ctags-same-mode-candidate ()
+(defun ac-ctags-same-mode-candidates ()
   (ac-word-candidates
    (lambda (buffer)
      (derived-mode-p (buffer-local-value 'major-mode buffer)))))
+
+(defun ac-ctags-buffer-dictionary-candidates ()
+  (ac-buffer-dictionary))
 
 (defun ac-ctags-document ()
   nil)
