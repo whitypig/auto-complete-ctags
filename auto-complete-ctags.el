@@ -57,6 +57,7 @@
 (defface ac-ctags-selection-face
   '((t (:background "PaleGreen4" :foreground "white")))
   "Face for the ctags selected candidate.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defvar ac-ctags-current-tags-list nil
   "Current list of tags.")
@@ -74,12 +75,12 @@ program. The following is an example:
   (\"Others\" (name command signature)...)'")
 
 (defvar ac-ctags-completion-table nil
-  "An association list with keys being languages and values being
-tag names in tags files. The values should be sorted by
-alphabetically. The following is an example.
-`((\"C++\" (name1 name2 name3...))
-  (\"Java\" (name1 name2 name3...))
-  (\"Others\" (name1 name2 name3)))'")
+  "An association list with keys being a language and values being a
+vector containing tag names in tags files. The following is an
+example.
+`((\"C++\" [name1 name2 name3...])
+  (\"Java\" [name1 name2 name3...])
+  (\"Others\" [name1 name2 name3)])'")
 
 (defvar ac-ctags-current-completion-table nil
   "")
