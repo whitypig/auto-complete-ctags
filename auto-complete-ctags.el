@@ -177,6 +177,7 @@ TAGS is expected to be an absolute path name."
   (assert (ac-ctags-is-valid-tags-file-p tags))
   (with-temp-buffer
     (insert-file-contents-literally tags)
+    (goto-char (point-min))
     ;; todo: How can we get the return type? `signature' in tags file
     ;; does not contain the return type.
     (while (re-search-forward
