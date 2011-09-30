@@ -94,6 +94,10 @@ example.
   '((c++-mode . ac-ctags-c++-prefix))
   "A table of prefix functions for a specific major mode.")
 
+(defvar ac-ctags-document-function-table
+  '((c++-mode . ac-ctags-c++-document))
+  "A table of document functions")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file (file &optional new)
   "Visit tags file."
@@ -227,8 +231,7 @@ TAGS is expected to be an absolute path name."
 
 (defun ac-ctags-build-current-completion-table (vec table)
   "Build completion vector"
-  (let ((langs (or (cadr (assoc major-mode ac-ctags-mode-to-string-table))
-                   '("Others"))))
+  (let ((langs (ac-ctags-get-mode-string major-mode)))
     (dolist (l langs)
       (when (cdr (assoc l table))
         (mapatoms (lambda (sym)
@@ -249,7 +252,7 @@ TAGS is expected to be an absolute path name."
 
 ;; todo: more accurate signatures are desirable.
 ;; i.e. not `(double d)' but `void func(double d) const',
-;; but for now just return signature entry in tags.
+;; but for now just return signature entry in tags prepended by name.
 (defun ac-ctags-get-signature (name db lang)
   "Return a list of signatures corresponding NAME."
   (loop for e in (cdr (assoc lang db))
@@ -259,10 +262,15 @@ TAGS is expected to be an absolute path name."
         collect (concat name (caddr e))))
 
 (defun ac-ctags-get-signature-by-mode (name db mode)
-  (let ((langs (cadr (assoc mode ac-ctags-mode-to-string-table))))
+  "Return a list containing signatures corresponding `name'."
+  (let ((langs (ac-ctags-get-mode-string mode))
+        (sigs nil))
     (when langs
-      (loop for lang in langs
-            collect (ac-ctags-get-signature name db lang)))))
+      (dolist (lang langs)
+        (let ((siglst (ac-ctags-get-signature name db lang)))
+          (when siglst
+            (setq sigs (append siglst sigs))))))
+    sigs))
 
 (defun ac-ctags-reset ()
   "Reset tags list, set, and other data."
@@ -273,6 +281,10 @@ TAGS is expected to be an absolute path name."
         ac-ctags-completion-table nil
         ac-ctags-current-completion-table nil
         ac-ctags-current-major-mode nil))
+
+(defun ac-ctags-get-mode-string (mode)
+  (or (cadr (assoc mode ac-ctags-mode-to-string-table))
+      '("Others")))
 
 ;;;;;;;;;;;;;;;;;;;; ac-ctags-select-tags-list-mode ;;;;;;;;;;;;;;;;;;;;
 (require 'button)
@@ -381,8 +393,10 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-buffer-dictionary-candidates ()
   (ac-buffer-dictionary))
 
-(defun ac-ctags-document ()
-  nil)
+(defun ac-ctags-document (item)
+  (let ((func (ac-ctags-get-document-function major-mode ac-ctags-document-function-table)))
+    (when func
+      (funcall func item))))
 
 (defun ac-ctags-prefix ()
   (or (funcall (ac-ctags-get-prefix-function major-mode ac-ctags-prefix-funtion-table))
@@ -439,6 +453,20 @@ TAGS is expected to be an absolute path name."
   (let ((f (assoc mode table)))
     (if f (cdr f)
       #'ac-prefix-symbol)))
+
+(defun ac-ctags-get-document-function (mode table)
+  (cdr (assoc mode table)))
+
+(defun ac-ctags-c++-document (item)
+  "Documentation function for c++-mode."
+  (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
+                                             ac-ctags-tags-db
+                                             major-mode)))
+    (cond
+     ((= (length lst) 1) (car lst))
+     ((> (length lst) 1)
+      (reduce (lambda (x y) (concat x "\n" y)) lst))
+     (t "No documentation available."))))
 
 ;; ac-source-ctags
 (ac-define-source ctags
