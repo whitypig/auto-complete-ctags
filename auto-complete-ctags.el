@@ -304,8 +304,7 @@ TAGS is expected to be an absolute path name."
         ac-ctags-tags-list-set nil
         ac-ctags-tags-db nil
         ac-ctags-completion-table nil
-        ac-ctags-current-completion-table nil
-        ac-ctags-current-major-mode nil))
+        ac-ctags-current-completion-table nil))
 
 (defun ac-ctags-get-mode-string (mode)
   (or (cadr (assoc mode ac-ctags-mode-to-string-table))
