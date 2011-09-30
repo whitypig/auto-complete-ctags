@@ -9,6 +9,14 @@
 (defconst test-ac-ctags-java-tagsfile "java.tags")
 (defconst test-ac-ctags-c-tagsfile "c.tags")
 
+(defun test-ac-ctags-fixture (body)
+  (let ((ac-ctags-tags-db nil)
+        (ac-ctags-current-tags-list nil)
+        (ac-ctags-tags-list-set nil)
+        (ac-ctags-completion-table nil)
+        (ac-ctags-current-completion-table nil))
+    (funcall body)))
+
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
   "A test to check whether a tags file is created by Exuberant
 ctags."
@@ -213,17 +221,15 @@ ctags."
                    (ac-ctags-get-signature "normal_func" db "C++")))))
 
 (ert-deftest test-ac-ctags-c++-document ()
-  (let* ((ac-ctags-tags-db nil)
-         (ac-ctags-current-tags-list nil)
-         (ac-ctags-completion-table nil)
-         (ac-ctags-current-completion-table nil))
-    (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile)
-    (should
-     (string= "overloaded_func(double d)\noverloaded_func(int i)"
-              (ac-ctags-c++-document "overloaded_func")))
-    (should
-     (string= "normal_func()"
-              (ac-ctags-c++-document "normal_func")))))
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile)
+     (should
+      (string= "overloaded_func(double d)\noverloaded_func(int i)"
+               (ac-ctags-c++-document "overloaded_func")))
+     (should
+      (string= "normal_func()"
+               (ac-ctags-c++-document "normal_func"))))))
 
 (ert-deftest test-ac-ctags-get-mode-string ()
   (should (equal '("C++" "C")
