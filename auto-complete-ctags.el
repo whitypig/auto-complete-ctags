@@ -129,23 +129,30 @@ need be."
     (ac-ctags-insert-tags-into-current-list tagsfile))))
 
 (defun ac-ctags-build (tagsfile new)
+  "Update current tags list and build db."
   (let (db
         tbl
         (vec (make-vector ac-ctags-vector-default-size 0))
-        (lst ac-ctags-current-tags-list)
+        (old-lst ac-ctags-current-tags-list)
         new-lst)
     (setq new-lst (ac-ctags-update-tags-list tagsfile new))
-    (unless (or (null new-lst) (equal lst new-lst))
+    (ac-ctags-build-1 old-lst new-lst)))
+
+(defun ac-ctags-build-1 (old-lst new-lst)
+  "If tags list has changed, rebuild db."
+  (let (db
+        tbl
+        (vec (make-vector ac-ctags-vector-default-size 0)))
+    (unless (or (null new-lst) (equal old-lst new-lst))
       ;; If tags list has changed, we update the information
-      (message  "ac-ctags: Building completion table...")
       (setq db (ac-ctags-build-tagsdb new-lst db))
       (setq tbl (ac-ctags-build-completion-table db))
       (setq vec (ac-ctags-build-current-completion-table vec tbl))
-      ;; Update the state.
-      (setq ac-ctags-tags-db db
+      ;; Update the state
+      (setq ac-ctags-current-tags-list new-lst
+            ac-ctags-tags-db db
             ac-ctags-completion-table tbl
-            ac-ctags-current-completion-table vec)
-      (message "ac-ctags: Building completion table...done"))))
+            ac-ctags-current-completion-table vec))))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
@@ -364,19 +371,19 @@ TAGS is expected to be an absolute path name."
   "Select the tags list on this line."
   (interactive (list (or (button-at (line-beginning-position))
                          (error "No tags list on the current line"))))
-  (let ((tagslist (button-get button 'ac-ctags-tags-list)))
+  (let ((new-lst (button-get button 'ac-ctags-tags-list))
+        (old-lst ac-ctags-current-tags-list))
     (ac-ctags-select-tags-list-quit)
     ;; If the newly selected tags list is not the same as the current
     ;; one, we switch the current list to the new one.
-    (when (and tagslist
+    (when (and new-lst
                (not (equal ac-ctags-current-tags-list
-                           tagslist))
-               (ac-ctags-switch tagslist))
-      (message "Current tags list: %s" tagslist))))
+                           new-lst))
+               (ac-ctags-switch old-lst new-lst))
+      (message "Current tags list: %s" new-lst))))
 
-(defun ac-ctags-switch (tagslist)
-  (setq ac-ctags-current-tags-list tagslist)
-  (ac-ctags-build tagslist))
+(defun ac-ctags-switch (old-lst new-lst)
+  (ac-ctags-build-1 old-lst new-lst))
 
 (defun ac-ctags-select-tags-list-quit ()
   (interactive)
