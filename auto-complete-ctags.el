@@ -353,13 +353,15 @@ TAGS is expected to be an absolute path name."
                   (cdr (assoc l ac-ctags-completion-table)))))
     ;; Workaround to include same-mode-candidates and
     ;; ac-dictionary-candidates, which I think are essential.
-    (setq candidates (all-completions ac-target
-                                      tbl))
-    (setq candidates (append (ac-ctags-same-mode-candidates)
-                             candidates))
-    (setq candidates (sort (append (ac-ctags-buffer-dictionary-candidates)
-                                   candidates)
-                           #'string<))
+    (setq candidates
+          (sort (append (all-completions ac-target tbl)
+                        (ac-ctags-same-mode-candidates))
+                #'string<))
+    ;; For now, comment out the below because calling
+    ;; ac-buffer-dictionary causes some problems.
+    ;; (setq candidates (sort (append (ac-ctags-buffer-dictionary-candidates)
+    ;;                                candidates)
+    ;;                        #'string<))
     (let ((len (length candidates)))
       (if (and (numberp ac-ctags-candidate-limit)
                (> len ac-ctags-candidate-limit))
@@ -378,7 +380,8 @@ TAGS is expected to be an absolute path name."
   nil)
 
 (defun ac-ctags-prefix ()
-  (funcall (ac-ctags-get-prefix-function major-mode ac-ctags-prefix-funtion-table)))
+  (or (funcall (ac-ctags-get-prefix-function major-mode ac-ctags-prefix-funtion-table))
+      (ac-prefix-symbol)))
 
 (defun ac-ctags-c++-prefix ()
   (let ((c (char-before))
@@ -407,7 +410,7 @@ TAGS is expected to be an absolute path name."
         (if (ac-ctags-double-colon-p (point))
             (+ 2 (point))
           (point))))
-     (t (ac-prefix-symbol)))))
+     (t nil))))
 
 (defun ac-ctags-skip-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
