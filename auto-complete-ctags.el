@@ -88,7 +88,7 @@ example.
   (\"Others\" . [name1 name2 name3)])'")
 
 (defvar ac-ctags-current-completion-table nil
-  "")
+  "A vector used for completion for `ac-ctags-current-tags-list'.")
 
 (defvar ac-ctags-prefix-funtion-table
   '((c++-mode . ac-ctags-c++-prefix))
@@ -120,12 +120,14 @@ example.
     (message "Current tags list: %s" ac-ctags-current-tags-list)))
 
 (defun ac-ctags-build (tagslist)
-  (let (db tbl)
+  (let (db tbl (vec (make-vector ac-ctags-vector-default-size 0)))
     (message  "ac-ctags: Building completion table...")
     (setq db (ac-ctags-build-tagsdb tagslist db))
     (setq tbl (ac-ctags-build-completion-table db))
+    (setq vec (ac-ctags-build-current-completion-table vec tbl))
     (setq ac-ctags-tags-db db
-          ac-ctags-completion-table tbl)
+          ac-ctags-completion-table tbl
+          ac-ctags-current-completion-table vec)
     (message "ac-ctags: Building completion table...done")))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
@@ -223,6 +225,17 @@ TAGS is expected to be an absolute path name."
             (push (cons lang vec) tbl)))))
     tbl))
 
+(defun ac-ctags-build-current-completion-table (vec table)
+  "Build completion vector"
+  (let ((langs (or (cadr (assoc major-mode ac-ctags-mode-to-string-table))
+                   '("Others"))))
+    (dolist (l langs)
+      (when (cdr (assoc l table))
+        (mapatoms (lambda (sym)
+                    (intern (symbol-name sym) vec))
+                  (cdr (assoc l table)))))
+    vec))
+
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
   string."
@@ -257,7 +270,9 @@ TAGS is expected to be an absolute path name."
   (setq ac-ctags-current-tags-list nil
         ac-ctags-tags-list-set nil
         ac-ctags-tags-db nil
-        ac-ctags-completion-table nil))
+        ac-ctags-completion-table nil
+        ac-ctags-current-completion-table nil
+        ac-ctags-current-major-mode nil))
 
 ;;;;;;;;;;;;;;;;;;;; ac-ctags-select-tags-list-mode ;;;;;;;;;;;;;;;;;;;;
 (require 'button)
@@ -340,21 +355,11 @@ TAGS is expected to be an absolute path name."
 
 ;;;;;;;;;;;;;;;;;;;; Definition of ac-source-ctags ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
-  (let ((candidates nil)
-        (tbl (make-vector ac-ctags-vector-default-size 0))
-        (langs (or (cadr (assoc major-mode
-                                ac-ctags-mode-to-string-table))
-                   '("Others"))))
-    ;; Combine elements in completion tables
-    (dolist (l langs)
-      (when (cdr (assoc l ac-ctags-completion-table))
-        (mapatoms (lambda (sym)
-                    (intern (symbol-name sym) tbl))
-                  (cdr (assoc l ac-ctags-completion-table)))))
+  (let ((candidates nil))
     ;; Workaround to include same-mode-candidates and
     ;; ac-dictionary-candidates, which I think are essential.
     (setq candidates
-          (sort (append (all-completions ac-target tbl)
+          (sort (append (all-completions ac-target ac-ctags-current-completion-table)
                         (ac-ctags-same-mode-candidates))
                 #'string<))
     ;; For now, comment out the below because calling
