@@ -212,7 +212,7 @@ ctags."
     (should (equal '("normal_func()")
                    (ac-ctags-get-signature "normal_func" db "C++")))))
 
-(ert-deftest test-ac-ctags-cpp-document ()
+(ert-deftest test-ac-ctags-c++-document ()
   (let* ((ac-ctags-tags-db nil)
          (ac-ctags-current-tags-list `(,test-ac-ctags-cpp-tagsfile))
          (ac-ctags-completion-table nil)
@@ -220,7 +220,10 @@ ctags."
     (ac-ctags-build ac-ctags-current-tags-list)
     (should
      (string= "overloaded_func(double d)\noverloaded_func(int i)"
-              (ac-ctags-c++-document "overloaded_func")))))
+              (ac-ctags-c++-document "overloaded_func")))
+    (should
+     (string= "normal_func()"
+              (ac-ctags-c++-document "normal_func")))))
 
 (ert-deftest test-ac-ctags-get-mode-string ()
   (should (equal '("C++" "C")

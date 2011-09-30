@@ -270,7 +270,7 @@ TAGS is expected to be an absolute path name."
         (let ((siglst (ac-ctags-get-signature name db lang)))
           (when siglst
             (setq sigs (append siglst sigs))))))
-    sigs))
+    (sort sigs #'string<)))
 
 (defun ac-ctags-reset ()
   "Reset tags list, set, and other data."
@@ -461,7 +461,7 @@ TAGS is expected to be an absolute path name."
   "Documentation function for c++-mode."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
                                              ac-ctags-tags-db
-                                             major-mode)))
+                                             'c++-mode)))
     (cond
      ((= (length lst) 1) (car lst))
      ((> (length lst) 1)
