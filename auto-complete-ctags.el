@@ -107,36 +107,46 @@ example.
                                       "tags"
                                       t))))
   (or (stringp file) (signal 'wrong-type-argument (list 'stringp file)))
-  (let ((tagsfile file) db tbl)
+  (let ((tagsfile file))
     (unless (ac-ctags-is-valid-tags-file-p tagsfile)
       (error "Invalid tags: %s is not a valid tags file" tagsfile))
-    ;; ask user whether the tags will be inserted into the current
-    ;; list or a new one, and do insert.
-    (cond
-     ((null ac-ctags-current-tags-list)
-      (ac-ctags-insert-tags-into-current-list tagsfile))
-     ((or (eq new 'new) (and (not (eq new 'current)) (ac-ctags-create-new-list-p tagsfile)))
-      (ac-ctags-insert-tags-into-new-list tagsfile))
-     (t
-      (ac-ctags-insert-tags-into-current-list tagsfile)))
-    ;; Either way, we have to (re)build db and completion table.
-    (ac-ctags-build ac-ctags-current-tags-list)
+    (ac-ctags-build tagsfile new)
     (message "Current tags list: %s" ac-ctags-current-tags-list)))
 
+(defun ac-ctags-update-tags-list (tagsfile new)
+  "Update `ac-ctags-current-tags-list' and`ac-ctags-tags-list-set' if
+need be."
+  (cond
+   ((null ac-ctags-current-tags-list)
+    (ac-ctags-insert-tags-into-current-list tagsfile))
+   ;; Ask user whether the tags will be inserted into the current
+   ;; list or a new one, and do insert.
+   ((or (eq new 'new)
+        (and (not (eq new 'current))
+             (ac-ctags-create-new-list-p tagsfile)))
+    (ac-ctags-insert-tags-into-new-list tagsfile))
+   (t
+    (ac-ctags-insert-tags-into-current-list tagsfile))))
+
 ;; todo use progress reporter
-(defun ac-ctags-build (tagslist)
+(defun ac-ctags-build (tagsfile new)
   (let (db
         tbl
-        (vec (make-vector ac-ctags-vector-default-size 0)))
-    (message  "ac-ctags: Building completion table...")
-    (setq db (ac-ctags-build-tagsdb tagslist db))
-    (setq tbl (ac-ctags-build-completion-table db))
-    (setq vec (ac-ctags-build-current-completion-table vec tbl))
-    ;; Update the state.
-    (setq ac-ctags-tags-db db
-          ac-ctags-completion-table tbl
-          ac-ctags-current-completion-table vec)
-    (message "ac-ctags: Building completion table...done")))
+        (vec (make-vector ac-ctags-vector-default-size 0))
+        (lst ac-ctags-current-tags-list)
+        new-lst)
+    (setq new-lst (ac-ctags-update-tags-list tagsfile new))
+    (unless (or (null new-lst) (equal lst new-lst))
+      ;; If tags list has changed, we update the information
+      (message  "ac-ctags: Building completion table...")
+      (setq db (ac-ctags-build-tagsdb new-lst db))
+      (setq tbl (ac-ctags-build-completion-table db))
+      (setq vec (ac-ctags-build-current-completion-table vec tbl))
+      ;; Update the state.
+      (setq ac-ctags-tags-db db
+            ac-ctags-completion-table tbl
+            ac-ctags-current-completion-table vec)
+      (message "ac-ctags: Building completion table...done"))))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the

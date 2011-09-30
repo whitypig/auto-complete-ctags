@@ -214,10 +214,10 @@ ctags."
 
 (ert-deftest test-ac-ctags-c++-document ()
   (let* ((ac-ctags-tags-db nil)
-         (ac-ctags-current-tags-list `(,test-ac-ctags-cpp-tagsfile))
+         (ac-ctags-current-tags-list nil)
          (ac-ctags-completion-table nil)
          (ac-ctags-current-completion-table nil))
-    (ac-ctags-build ac-ctags-current-tags-list)
+    (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile)
     (should
      (string= "overloaded_func(double d)\noverloaded_func(int i)"
               (ac-ctags-c++-document "overloaded_func")))
@@ -234,7 +234,6 @@ ctags."
                  (ac-ctags-get-mode-string 'foo-mode))))
 
 (ert-deftest test-ac-ctags-visit-tags-file:list-is-empty ()
-  (cd "~/repos/git_repos/auto-complete-ctags/test/")
   (let ((test-tagsfile (expand-file-name test-ac-ctags-valid-tagfile))
         (default-tagsfile (expand-file-name "./tags")))
     ;; Try to insert a new tag into an emtpy tags list.
