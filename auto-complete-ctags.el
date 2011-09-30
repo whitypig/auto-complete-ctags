@@ -123,12 +123,16 @@ example.
     (ac-ctags-build ac-ctags-current-tags-list)
     (message "Current tags list: %s" ac-ctags-current-tags-list)))
 
+;; todo use progress reporter
 (defun ac-ctags-build (tagslist)
-  (let (db tbl (vec (make-vector ac-ctags-vector-default-size 0)))
+  (let (db
+        tbl
+        (vec (make-vector ac-ctags-vector-default-size 0)))
     (message  "ac-ctags: Building completion table...")
     (setq db (ac-ctags-build-tagsdb tagslist db))
     (setq tbl (ac-ctags-build-completion-table db))
     (setq vec (ac-ctags-build-current-completion-table vec tbl))
+    ;; Update the state.
     (setq ac-ctags-tags-db db
           ac-ctags-completion-table tbl
           ac-ctags-current-completion-table vec)
