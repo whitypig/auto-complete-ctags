@@ -128,7 +128,6 @@ need be."
    (t
     (ac-ctags-insert-tags-into-current-list tagsfile))))
 
-;; todo use progress reporter
 (defun ac-ctags-build (tagsfile new)
   (let (db
         tbl
@@ -204,27 +203,32 @@ TAGS is expected to be an absolute path name."
   (with-temp-buffer
     (insert-file-contents-literally tags)
     (goto-char (point-min))
-    ;; todo: How can we get the return type? `signature' in tags file
-    ;; does not contain the return type.
-    (while (re-search-forward
-            "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
-            nil t)
-      (let (line name cmd (lang "Others") signature)
-        (setq line (match-string-no-properties 0)
-              name (match-string-no-properties 1)
-              cmd (ac-ctags-trim-whitespace
-                   (ac-ctags-strip-cmd (match-string-no-properties 2))))
-        ;; If this line contains a language information, we get it.
-        (when (string-match "language:\\([^\t\n]+\\)" line)
-          (setq lang (match-string-no-properties 1 line)))
-        ;; If this line contains a signature, we get it.
-        (when (string-match "signature:\\([^\t\n]+\\)" line)
-          (setq signature (match-string-no-properties 1 line)))
-        (if (assoc lang tags-db)
-            (push `(,name ,cmd ,signature)
-                  (cdr (assoc lang tags-db)))
-          (push `(,lang (,name ,cmd ,signature))
-                tags-db)))))
+    (let ((reporter (make-progress-reporter
+                     (format "Building tags db for %s..."
+                             (file-name-nondirectory tags))
+                     (point-min) (point-max))))
+      ;; todo: How can we get the return type? `signature' in tags file
+      ;; does not contain the return type.
+      (while (re-search-forward
+              "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
+              nil t)
+        (let (line name cmd (lang "Others") signature)
+          (setq line (match-string-no-properties 0)
+                name (match-string-no-properties 1)
+                cmd (ac-ctags-trim-whitespace
+                     (ac-ctags-strip-cmd (match-string-no-properties 2))))
+          ;; If this line contains a language information, we get it.
+          (when (string-match "language:\\([^\t\n]+\\)" line)
+            (setq lang (match-string-no-properties 1 line)))
+          ;; If this line contains a signature, we get it.
+          (when (string-match "signature:\\([^\t\n]+\\)" line)
+            (setq signature (match-string-no-properties 1 line)))
+          (if (assoc lang tags-db)
+              (push `(,name ,cmd ,signature)
+                    (cdr (assoc lang tags-db)))
+            (push `(,lang (,name ,cmd ,signature))
+                  tags-db)))
+        (progress-reporter-update reporter (point)))))
   tags-db)
 
 ;; ("C++" (name command signature)...)
