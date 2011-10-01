@@ -297,6 +297,11 @@ TAGS is expected to be an absolute path name."
             (setq sigs (append siglst sigs))))))
     (sort sigs #'string<)))
 
+(defun ac-ctags-construct-signature (signature cmd)
+  "Construct a full signature if possible."
+  (when (string-match signature cmd)
+    (substring-no-properties cmd 0 (match-end 0))))
+
 (defun ac-ctags-reset ()
   "Reset tags list, set, and other data."
   (interactive)
