@@ -235,7 +235,8 @@ TAGS is expected to be an absolute path name."
                     (cdr (assoc lang tags-db)))
             (push `(,lang (,name ,cmd ,signature))
                   tags-db)))
-        (progress-reporter-update reporter (point)))))
+        (progress-reporter-update reporter (point)))
+      (progress-reporter-done reporter)))
   tags-db)
 
 ;; ("C++" (name command signature)...)
@@ -281,10 +282,13 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-get-signature (name db lang)
   "Return a list of signatures corresponding NAME."
   (loop for e in (cdr (assoc lang db))
+        ;; for each `(name cmd signature)'
         ;; linear searching is not what I want to use...
         when (and (string= name (car e))
                   (not (null (caddr e))))
-        collect (concat name (caddr e))))
+        collect (ac-ctags-construct-signature
+                 (concat name (caddr e))
+                 (cadr e))))
 
 (defun ac-ctags-get-signature-by-mode (name db mode)
   "Return a list containing signatures corresponding `name'."
@@ -299,8 +303,15 @@ TAGS is expected to be an absolute path name."
 
 (defun ac-ctags-construct-signature (signature cmd)
   "Construct a full signature if possible."
-  (when (string-match signature cmd)
-    (substring-no-properties cmd 0 (match-end 0))))
+  (when (string-match (regexp-quote (ac-ctags-strip-class-name signature))
+                      cmd)
+    (concat (substring-no-properties cmd 0 (match-beginning 0))
+            signature)))
+
+(defun ac-ctags-strip-class-name (name)
+  (if (string-match ".*::\\([^:]+\\)" name)
+    (match-string-no-properties 1 name)
+    name))
 
 (defun ac-ctags-reset ()
   "Reset tags list, set, and other data."
