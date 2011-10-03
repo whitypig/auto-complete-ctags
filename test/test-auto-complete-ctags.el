@@ -205,19 +205,32 @@ ctags."
 (ert-deftest test-ac-ctags-get-signature ()
   (let* ((db nil)
          (db (ac-ctags-build-tagsdb `(,test-ac-ctags-cpp-tagsfile) db)))
-    (should (equal '("normal_func()")
+    (should (equal '("void normal_func()")
                    (ac-ctags-get-signature "normal_func" db "C++")))
-    (should (equal '("TestClass::normal_func()")
+    (should (equal '("void TestClass::normal_func()")
                    (ac-ctags-get-signature "TestClass::normal_func" db "C++")))
-    (should (equal '("overloaded_func(int i)" "overloaded_func(double d)")
+    (should (equal '("void overloaded_func(int i)" "void overloaded_func(double d)")
                    (ac-ctags-get-signature "overloaded_func" db "C++")))
     (should (null (ac-ctags-get-signature "TestClass" db "C++")))
     (should (null (ac-ctags-get-signature "nonexist" db "C++")))))
 
+(ert-deftest test-ac-ctags-get-signature:gtest ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-valid-gtest-tagfile 'new)
+     (should
+      (equal '("GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"
+               "GTEST_API_ void InitGoogleTest(int* argc, char** argv)")
+             (ac-ctags-get-signature "InitGoogleTest" ac-ctags-tags-db "C++")))
+     (should
+      (null (ac-ctags-get-signature "EXPECT_EQ"
+                                    ac-ctags-tags-db
+                                    "C++"))))))
+
 (ert-deftest test-ac-ctags-get-signature-by-mode ()
   (let* ((db nil)
          (db (ac-ctags-build-tagsdb `(,test-ac-ctags-cpp-tagsfile) db)))
-    (should (equal '("normal_func()")
+    (should (equal '("void normal_func()")
                    (ac-ctags-get-signature "normal_func" db "C++")))))
 
 (ert-deftest test-ac-ctags-c++-document ()
@@ -338,3 +351,30 @@ ctags."
   (let ((cmd "/^		$xmlText = '<' . '?xml version=\"1.0\" encoding=\"UTF-8\"?><tags><tag><id>1<\/id><name>defect<\/name><\/tag><tag><id>2<\/id><name>enhancement<\/name><\/tag><\/tags>';$/"))
     (should (string= "		$xmlText = '<' . '?xml version=\"1.0\" encoding=\"UTF-8\"?><tags><tag><id>1<\/id><name>defect<\/name><\/tag><tag><id>2<\/id><name>enhancement<\/name><\/tag><\/tags>'"
                      (ac-ctags-strip-cmd cmd)))))
+
+(ert-deftest test-ac-ctags-construct-signature ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile
+                               'new)
+     (should
+      (string= "void normal_func()"
+               (ac-ctags-construct-signature "normal_func()"
+                                             "void normal_func() {}")))
+     (should
+      (string= "int get() const"
+               (ac-ctags-construct-signature "get() const"
+                                             "int get() const { return 0; }")))
+     (should
+      (string= "void TestClass::normal_func()"
+               (ac-ctags-construct-signature "TestClass::normal_func()"
+                                             "void normal_func() {}")))
+     (should
+      (string= "GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"
+               (ac-ctags-construct-signature
+                "InitGoogleTest(int* argc, wchar_t** argv)"
+                "GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"))))))
+
+(ert-deftest test-ac-ctags-strip-class-name ()
+  (should (string= "normal_func"
+                   (ac-ctags-strip-class-name "TestClass::normal_func"))))
