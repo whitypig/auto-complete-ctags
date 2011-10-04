@@ -451,7 +451,7 @@ TAGS is expected to be an absolute path name."
       (when (and (char-before (1- (point)))
                  (char-equal (char-before (1- (point))) ?:))
         (save-excursion
-          (ac-ctags-skip-delim-backward)
+          (ac-ctags-skip-to-delim-backward)
           (if (and (= (point) bol)
                    (ac-ctags-double-colon-p (point)))
               (+ 2 (point))
@@ -461,17 +461,17 @@ TAGS is expected to be an absolute path name."
      ((save-excursion
         (re-search-backward "::"
                             (save-excursion
-                              (ac-ctags-skip-delim-backward)
+                              (ac-ctags-skip-to-delim-backward)
                               (point))
                             t))
       (save-excursion
-        (ac-ctags-skip-delim-backward)
+        (ac-ctags-skip-to-delim-backward)
         (if (ac-ctags-double-colon-p (point))
             (+ 2 (point))
           (point))))
      (t nil))))
 
-(defun ac-ctags-skip-delim-backward ()
+(defun ac-ctags-skip-to-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
         (cont t))
     (while (and cont (search-backward "::" bol t))
