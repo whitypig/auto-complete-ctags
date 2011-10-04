@@ -97,7 +97,9 @@ example.
 (defvar ac-ctags-document-function-table
   '((c++-mode . ac-ctags-c++-document)
     (c-mode . ac-ctags-c-document)
-    (java-mode . ac-ctags-java-document))
+    (java-mode . ac-ctags-java-document)
+    (jde-mode . ac-ctags-java-document)
+    (malabar-mode . ac-ctags-java-document))
   "A table of document functions")
 
 (defconst ac-ctags-no-document-message "No document available.")
