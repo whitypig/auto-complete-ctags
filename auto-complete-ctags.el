@@ -74,10 +74,10 @@
   "An association list with keys being languages and values being
 the information extracted from tags file created by ctags
 program. The following is an example:
-`((\"C++\" (name command signature)...)
-  (\"C\" (name command signature)...)
-  (\"Java\" (name command signature)...)
-  (\"Others\" (name command signature)...)'")
+`((\"C++\" (name command kind signature)...)
+  (\"C\" (name command kind signature)...)
+  (\"Java\" (name command kind signature)...)
+  (\"Others\" (name command kind signature)...)'")
 
 (defvar ac-ctags-completion-table nil
   "An association list with keys being a language and values being a
@@ -222,7 +222,7 @@ TAGS is expected to be an absolute path name."
       (while (re-search-forward
               "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
               nil t)
-        (let (line name cmd (lang "Others") signature)
+        (let (line name cmd kind (lang "Others") signature)
           (setq line (match-string-no-properties 0)
                 name (match-string-no-properties 1)
                 cmd (ac-ctags-trim-whitespace
@@ -233,14 +233,28 @@ TAGS is expected to be an absolute path name."
           ;; If this line contains a signature, we get it.
           (when (string-match "signature:\\([^\t\n]+\\)" line)
             (setq signature (match-string-no-properties 1 line)))
+          (when (string-match "kind:\\([^\t\n]+\\)" line)
+            (setq kind (match-string-no-properties 1 line)))
           (if (assoc lang tags-db)
-              (push `(,name ,cmd ,signature)
+              (push `(,name ,cmd ,kind ,signature)
                     (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,cmd ,signature))
+            (push `(,lang (,name ,cmd ,kind ,signature))
                   tags-db)))
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
   tags-db)
+
+(defun ac-ctags-node-name (node)
+  (car node))
+
+(defun ac-ctags-node-command (node)
+  (cadr node))
+
+(defun ac-ctags-node-kind (node)
+  (caddr node))
+
+(defun ac-ctags-node-signature (node)
+  (cadddr node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
@@ -283,7 +297,7 @@ TAGS is expected to be an absolute path name."
 ;; i.e. not `(double d)' but `void func(double d) const',
 ;; but for now just return signature entry in tags prepended by name.
 (defun ac-ctags-get-signature (name db lang)
-  "Return a list of signatures corresponding NAME."
+  "Return a list of signatures corresponding to NAME."
   (loop for e in (cdr (assoc lang db))
         ;; for each `(name cmd signature)'
         ;; linear searching is not what I want to use...
