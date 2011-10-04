@@ -411,9 +411,25 @@ ctags."
              "prototype"
              "()"))))
 
+(ert-deftest test-ac-ctags-construct-signature:java ()
+  (should
+   (string= "public void helloWorld()"
+            (ac-ctags-construct-signature "helloWorld"
+                                          "public void helloWorld() {"
+                                          "method"
+                                          "()")))
+  (should
+   (string= "public void Test.helloWorld()"
+            (ac-ctags-construct-signature "Test.helloWorld"
+                                          "public void helloWorld() {"
+                                          "method"
+                                          "()"))))
+
 (ert-deftest test-ac-ctags-strip-class-name ()
   (should (string= "normal_func"
-                   (ac-ctags-strip-class-name "TestClass::normal_func"))))
+                   (ac-ctags-strip-class-name "TestClass::normal_func")))
+  (should (string= "helloWorld"
+                   (ac-ctags-strip-class-name "Test.helloWorld"))))
 
 ;; node => (name cmd kind signature)
 (ert-deftest test-ac-ctags-node-access ()
@@ -449,4 +465,7 @@ ctags."
                (ac-ctags-java-document "helloWorld")))
      (should
       (string= "private int helloAnotherWorld() throws NullPointerException"
-               (ac-ctags-java-document "helloAnotherWorld"))))))
+               (ac-ctags-java-document "helloAnotherWorld")))
+     (should
+      (string= "public void Test.helloWorld()"
+               (ac-ctags-java-document "Test.helloWorld"))))))

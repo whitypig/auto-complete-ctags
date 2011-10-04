@@ -348,9 +348,14 @@ TAGS is expected to be an absolute path name."
       (string= kind "method")))
 
 (defun ac-ctags-strip-class-name (name)
-  (if (string-match ".*::\\([^:]+\\)" name)
-    (match-string-no-properties 1 name)
-    name))
+  (cond
+   ;; For c++
+   ((string-match ".*::\\([^:]+\\)" name)
+    (match-string-no-properties 1 name))
+   ;; For java
+   ((string-match ".*\\.\\([^.]+\\)" name)
+    (match-string-no-properties 1 name))
+   (t name)))
 
 (defun ac-ctags-reset ()
   "Reset tags list, set, and other data."
