@@ -95,7 +95,8 @@ example.
   "A table of prefix functions for a specific major mode.")
 
 (defvar ac-ctags-document-function-table
-  '((c++-mode . ac-ctags-c++-document))
+  '((c++-mode . ac-ctags-c++-document)
+    (c-mode . ac-ctags-c-document))
   "A table of document functions")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -303,10 +304,11 @@ TAGS is expected to be an absolute path name."
 
 (defun ac-ctags-construct-signature (signature cmd)
   "Construct a full signature if possible."
-  (when (string-match (regexp-quote (ac-ctags-strip-class-name signature))
-                      cmd)
-    (concat (substring-no-properties cmd 0 (match-beginning 0))
-            signature)))
+  (if (string-match (regexp-quote (ac-ctags-strip-class-name signature))
+                    cmd)
+      (concat (substring-no-properties cmd 0 (match-beginning 0))
+              signature)
+    signature))
 
 (defun ac-ctags-strip-class-name (name)
   (if (string-match ".*::\\([^:]+\\)" name)
@@ -506,7 +508,17 @@ TAGS is expected to be an absolute path name."
      ((= (length lst) 1) (car lst))
      ((> (length lst) 1)
       (reduce (lambda (x y) (concat x "\n" y)) lst))
-     (t "No documentation available."))))
+     (t "No document available."))))
+
+(defun ac-ctags-c-document (item)
+  (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
+                                             ac-ctags-tags-db
+                                             'c-mode)))
+    (cond
+     ((= (length lst) 1) (car lst))
+     ((> (length lst) 1)
+      (reduce (lambda (x y) (concat x "\n" y)) lst))
+     (t "No document available."))))
 
 ;; ac-source-ctags
 (ac-define-source ctags
