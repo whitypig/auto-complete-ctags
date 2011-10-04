@@ -207,15 +207,16 @@ ctags."
    (lambda ()
      (ac-ctags-reset)
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
-     ;; (should (equal '("void normal_func()")
-     ;;                (ac-ctags-get-signature "normal_func" ac-ctags-tags-db "C++")))
-     ;; (should (equal '("void TestClass::normal_func()")
-     ;;                (ac-ctags-get-signature "TestClass::normal_func" ac-ctags-tags-db "C++")))
+     (should (equal '("void normal_func()")
+                    (ac-ctags-get-signature "normal_func" ac-ctags-tags-db "C++")))
+     (should (equal '("void TestClass::normal_func()")
+                    (ac-ctags-get-signature "TestClass::normal_func" ac-ctags-tags-db "C++")))
      (should (equal '("void overloaded_func(int i)" "void overloaded_func(double d)")
                     (ac-ctags-get-signature "overloaded_func" ac-ctags-tags-db "C++")))
-     ;; (should (null (ac-ctags-get-signature "TestClass" ac-ctags-tags-db "C++")))
-     ;; (should (null (ac-ctags-get-signature "nonexist" ac-ctags-tags-db "C++")))
-     )))
+     (should (equal '("void risky_func() throw (int)")
+                    (ac-ctags-get-signature "risky_func" ac-ctags-tags-db "C++")))
+     (should (null (ac-ctags-get-signature "TestClass" ac-ctags-tags-db "C++")))
+     (should (null (ac-ctags-get-signature "nonexist" ac-ctags-tags-db "C++"))))))
 
 (ert-deftest test-ac-ctags-get-signature:gtest ()
   (test-ac-ctags-fixture
@@ -245,7 +246,10 @@ ctags."
                (ac-ctags-c++-document "overloaded_func")))
      (should
       (string= "void normal_func()"
-               (ac-ctags-c++-document "normal_func"))))))
+               (ac-ctags-c++-document "normal_func")))
+     (should
+      (string= "void risky_func() throw (int)"
+               (ac-ctags-c++-document "risky_func"))))))
 
 (ert-deftest test-ac-ctags-c-document ()
   (test-ac-ctags-fixture
@@ -398,6 +402,15 @@ ctags."
                 "prototype"
                 "(int* argc, wchar_t** argv)"))))))
 
+(ert-deftest test-ac-ctags-construct-signature:throw ()
+  (should
+   (string= "void risky_func() throw (int)"
+            (ac-ctags-construct-signature
+             "risky_func"
+             "void risky_func() throw (int)"
+             "prototype"
+             "()"))))
+
 (ert-deftest test-ac-ctags-strip-class-name ()
   (should (string= "normal_func"
                    (ac-ctags-strip-class-name "TestClass::normal_func"))))
@@ -416,3 +429,24 @@ ctags."
            (ac-ctags-node-kind '("name" "cmd" nil "signature"))))
   (should (null
            (ac-ctags-node-signature '("name" "cmd" nil nil)))))
+
+(ert-deftest test-ac-ctags-get-signature:java ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile 'new)
+     (should
+      (equal '("public void helloWorld()")
+             (ac-ctags-get-signature "helloWorld"
+                                     ac-ctags-tags-db
+                                     "Java"))))))
+
+(ert-deftest test-ac-ctags-java-document ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile 'new)
+     (should
+      (string= "public void helloWorld()"
+               (ac-ctags-java-document "helloWorld")))
+     (should
+      (string= "private int helloAnotherWorld() throws NullPointerException"
+               (ac-ctags-java-document "helloAnotherWorld"))))))

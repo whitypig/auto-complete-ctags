@@ -96,7 +96,8 @@ example.
 
 (defvar ac-ctags-document-function-table
   '((c++-mode . ac-ctags-c++-document)
-    (c-mode . ac-ctags-c-document))
+    (c-mode . ac-ctags-c-document)
+    (java-mode . ac-ctags-java-document))
   "A table of document functions")
 
 (defconst ac-ctags-no-document-message "No document available.")
@@ -323,12 +324,22 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-construct-signature (name cmd kind signature)
   "Construct a full signature if possible."
   (when (ac-ctags-has-signature-p kind)
+    ;; The follwing should always match.
     (if (string-match (regexp-quote (ac-ctags-strip-class-name name))
                       cmd)
-        ;; This always should match.
-        (concat (substring-no-properties cmd 0 (match-beginning 0))
-                name
-                signature)
+        (let ((sig (concat (substring-no-properties cmd 0 (match-beginning 0))
+                           name
+                           signature)))
+          ;; Check to see if there is `throw' or `throws'.
+          (if (string-match (concat (regexp-quote (concat (ac-ctags-strip-class-name name)
+                                                          signature))
+                                    "\\([^{};]+\\)")
+                            cmd)
+              (ac-ctags-trim-whitespace
+               (concat sig
+                       " "
+                       (ac-ctags-trim-whitespace (match-string-no-properties 1 cmd))))
+            sig))
       signature)))
 
 (defun ac-ctags-has-signature-p (kind)
@@ -543,6 +554,17 @@ TAGS is expected to be an absolute path name."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
                                              ac-ctags-tags-db
                                              'c-mode)))
+    (cond
+     ((= (length lst) 1) (car lst))
+     ((> (length lst) 1)
+      (reduce (lambda (x y) (concat x "\n" y)) lst))
+     (t ac-ctags-no-document-message))))
+
+(defun ac-ctags-java-document (item)
+  "Document function for java-related mode."
+  (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
+                                             ac-ctags-tags-db
+                                             'java-mode)))
     (cond
      ((= (length lst) 1) (car lst))
      ((> (length lst) 1)
