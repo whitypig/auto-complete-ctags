@@ -371,8 +371,6 @@ ctags."
 (ert-deftest test-ac-ctags-construct-signature ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile
-                               'new)
      (should
       (string= "void normal_func()"
                (ac-ctags-construct-signature "normal_func"
