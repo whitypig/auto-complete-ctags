@@ -262,7 +262,7 @@ TAGS is expected to be an absolute path name."
   (let ((tbl nil))
     (dolist (db tags-db)
       ;; Create completion table for each language.
-      (let ((lang (car db)) (names (mapcar #'car (cdr db))))
+      (let ((lang (car db)) (names (mapcar #'ac-ctags-node-name (cdr db))))
         (if (assoc lang tbl)
             ;; intern each name into the vector
             (mapc (lambda (name) (intern name (cdr (assoc lang tbl))))
@@ -299,14 +299,15 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-get-signature (name db lang)
   "Return a list of signatures corresponding to NAME."
   (loop for e in (cdr (assoc lang db))
-        ;; for each `(name cmd signature)'
+        ;; for each `(name cmd kind signature)'
         ;; linear searching is not what I want to use...
-        when (and (string= name (car e))
-                  (not (null (caddr e))))
+        when (and (string= name (ac-ctags-node-name e))
+                  (not (null (ac-ctags-node-signature e))))
         collect (ac-ctags-construct-signature
                  name
-                 (cadr e)               ; cmd
-                 (caddr e))))           ; signature
+                 (ac-ctags-node-command e)
+                 (ac-ctags-node-kind e)
+                 (ac-ctags-node-signature e))))
 
 (defun ac-ctags-get-signature-by-mode (name db mode)
   "Return a list containing signatures corresponding `name'."
@@ -319,15 +320,21 @@ TAGS is expected to be an absolute path name."
             (setq sigs (append siglst sigs))))))
     (sort sigs #'string<)))
 
-(defun ac-ctags-construct-signature (name cmd signature)
+(defun ac-ctags-construct-signature (name cmd kind signature)
   "Construct a full signature if possible."
-  (if (string-match (regexp-quote (ac-ctags-strip-class-name name))
-                    cmd)
-      ;; This always should match.
-      (concat (substring-no-properties cmd 0 (match-beginning 0))
-              name
-              signature)
-    signature))
+  (when (ac-ctags-has-signature-p kind)
+    (if (string-match (regexp-quote (ac-ctags-strip-class-name name))
+                      cmd)
+        ;; This always should match.
+        (concat (substring-no-properties cmd 0 (match-beginning 0))
+                name
+                signature)
+      signature)))
+
+(defun ac-ctags-has-signature-p (kind)
+  (or (string= kind "function")
+      (string= kind "prototype")
+      (string= kind "method")))
 
 (defun ac-ctags-strip-class-name (name)
   (if (string-match ".*::\\([^:]+\\)" name)
