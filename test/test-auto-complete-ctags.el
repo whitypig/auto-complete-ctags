@@ -203,16 +203,18 @@ ctags."
       (should (intern-soft "helloWorld" (cdr java-tbl))))))
 
 (ert-deftest test-ac-ctags-get-signature ()
-  (let* ((db nil)
-         (db (ac-ctags-build-tagsdb `(,test-ac-ctags-cpp-tagsfile) db)))
-    (should (equal '("void normal_func()")
-                   (ac-ctags-get-signature "normal_func" db "C++")))
-    (should (equal '("void TestClass::normal_func()")
-                   (ac-ctags-get-signature "TestClass::normal_func" db "C++")))
-    (should (equal '("void overloaded_func(int i)" "void overloaded_func(double d)")
-                   (ac-ctags-get-signature "overloaded_func" db "C++")))
-    (should (null (ac-ctags-get-signature "TestClass" db "C++")))
-    (should (null (ac-ctags-get-signature "nonexist" db "C++")))))
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-reset)
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
+     (should (equal '("void normal_func()")
+                    (ac-ctags-get-signature "normal_func" ac-ctags-tags-db "C++")))
+     (should (equal '("void TestClass::normal_func()")
+                    (ac-ctags-get-signature "TestClass::normal_func" ac-ctags-tags-db "C++")))
+     (should (equal '("void overloaded_func(int i)" "void overloaded_func(double d)")
+                    (ac-ctags-get-signature "overloaded_func" ac-ctags-tags-db "C++")))
+     (should (null (ac-ctags-get-signature "TestClass" ac-ctags-tags-db "C++")))
+     (should (null (ac-ctags-get-signature "nonexist" ac-ctags-tags-db "C++"))))))
 
 (ert-deftest test-ac-ctags-get-signature:gtest ()
   (test-ac-ctags-fixture
@@ -238,11 +240,25 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile)
      (should
-      (string= "overloaded_func(double d)\noverloaded_func(int i)"
+      (string= "void overloaded_func(double d)\nvoid overloaded_func(int i)"
                (ac-ctags-c++-document "overloaded_func")))
      (should
-      (string= "normal_func()"
+      (string= "void normal_func()"
                (ac-ctags-c++-document "normal_func"))))))
+
+(ert-deftest test-ac-ctags-c-document ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-c-tagsfile)
+     (should
+      (string= "void simple_func(void)"
+               (ac-ctags-c-document "simple_func")))
+     (should
+      (string= "void simple_func2(int a, int b)"
+               (ac-ctags-c-document "simple_func2")))
+     (should
+      (string= ac-ctags-no-document-message
+               (ac-ctags-c-document "old_style_func"))))))
 
 (ert-deftest test-ac-ctags-get-mode-string ()
   (should (equal '("C++" "C")
@@ -359,21 +375,25 @@ ctags."
                                'new)
      (should
       (string= "void normal_func()"
-               (ac-ctags-construct-signature "normal_func()"
-                                             "void normal_func() {}")))
+               (ac-ctags-construct-signature "normal_func"
+                                             "void normal_func() {}"
+                                             "()")))
      (should
       (string= "int get() const"
-               (ac-ctags-construct-signature "get() const"
-                                             "int get() const { return 0; }")))
+               (ac-ctags-construct-signature "get"
+                                             "int get() const { return 0; }"
+                                             "() const")))
      (should
       (string= "void TestClass::normal_func()"
-               (ac-ctags-construct-signature "TestClass::normal_func()"
-                                             "void normal_func() {}")))
+               (ac-ctags-construct-signature "TestClass::normal_func"
+                                             "void normal_func() {}"
+                                             "()")))
      (should
       (string= "GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"
                (ac-ctags-construct-signature
-                "InitGoogleTest(int* argc, wchar_t** argv)"
-                "GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"))))))
+                "InitGoogleTest"
+                "GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"
+                "(int* argc, wchar_t** argv)"))))))
 
 (ert-deftest test-ac-ctags-strip-class-name ()
   (should (string= "normal_func"
