@@ -102,6 +102,9 @@ example.
     (malabar-mode . ac-ctags-java-document))
   "A table of document functions")
 
+(defvar ac-ctags-current-major-mode nil
+  "Current major mode")
+
 (defconst ac-ctags-no-document-message "No document available.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -285,6 +288,18 @@ TAGS is expected to be an absolute path name."
                   (cdr (assoc l table)))))
     vec))
 
+(defun ac-ctags-update-current-completion-table (mode)
+  (when (ac-ctags-major-mode-has-changed-p mode)
+    (let ((vec (make-vector ac-ctags-vector-default-size 0)))
+      (setq vec (ac-ctags-build-current-completion-table
+                 vec
+                 ac-ctags-completion-table))
+      (setq ac-ctags-current-completion-table vec))))
+
+(defun ac-ctags-major-mode-has-changed-p (mode)
+  (or (null ac-ctags-current-major-mode)
+      (not (eq mode ac-ctags-current-major-mode))))
+
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
   string."
@@ -454,6 +469,7 @@ TAGS is expected to be an absolute path name."
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil))
+    (ac-ctags-update-current-completion-table major-mode)
     ;; Workaround to include same-mode-candidates and
     ;; ac-dictionary-candidates, which I think are essential.
     (setq candidates
