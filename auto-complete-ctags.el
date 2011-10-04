@@ -309,6 +309,7 @@ TAGS is expected to be an absolute path name."
   "Construct a full signature if possible."
   (if (string-match (regexp-quote (ac-ctags-strip-class-name name))
                     cmd)
+      ;; This always should match.
       (concat (substring-no-properties cmd 0 (match-beginning 0))
               name
               signature)
@@ -411,7 +412,7 @@ TAGS is expected to be an absolute path name."
   (quit-window t (selected-window))
   (set-window-configuration ac-ctags-window-conf))
 
-;;;;;;;;;;;;;;;;;;;; Definition of ac-source-ctags ;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil))
     ;; Workaround to include same-mode-candidates and
@@ -439,10 +440,29 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-buffer-dictionary-candidates ()
   (ac-buffer-dictionary))
 
-(defun ac-ctags-document (item)
-  (let ((func (ac-ctags-get-document-function major-mode ac-ctags-document-function-table)))
-    (when func
-      (funcall func item))))
+(defun ac-ctags-skip-to-delim-backward ()
+  (let ((bol (save-excursion (beginning-of-line) (point)))
+        (cont t))
+    (while (and cont (search-backward "::" bol t))
+      (when (and (char-before) (string-match "[[:alpha:]]" (string (char-before))))
+        ;; skip a namespace
+        (skip-chars-backward "^* \t;()<>" bol)
+        (setq cont nil)))))
+
+(defun ac-ctags-double-colon-p (pos)
+  "Return t if characters at position POS and POS+1 are colons."
+  (let ((c1 (char-after pos))
+        (c2 (char-after (1+ pos))))
+    (and (characterp c1)
+         (characterp c2)
+         (char-equal c1 ?:)
+         (char-equal c2 ?:))))
+
+;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
+(defun ac-ctags-get-prefix-function (mode table)
+  (let ((f (assoc mode table)))
+    (if f (cdr f)
+      #'ac-prefix-symbol)))
 
 (defun ac-ctags-prefix ()
   (or (funcall (ac-ctags-get-prefix-function major-mode ac-ctags-prefix-funtion-table))
@@ -477,28 +497,11 @@ TAGS is expected to be an absolute path name."
           (point))))
      (t nil))))
 
-(defun ac-ctags-skip-to-delim-backward ()
-  (let ((bol (save-excursion (beginning-of-line) (point)))
-        (cont t))
-    (while (and cont (search-backward "::" bol t))
-      (when (and (char-before) (string-match "[[:alpha:]]" (string (char-before))))
-        ;; skip a namespace
-        (skip-chars-backward "^* \t;()<>" bol)
-        (setq cont nil)))))
-
-(defun ac-ctags-double-colon-p (pos)
-  "Return t if characters at position POS and POS+1 are colons."
-  (let ((c1 (char-after pos))
-        (c2 (char-after (1+ pos))))
-    (and (characterp c1)
-         (characterp c2)
-         (char-equal c1 ?:)
-         (char-equal c2 ?:))))
-
-(defun ac-ctags-get-prefix-function (mode table)
-  (let ((f (assoc mode table)))
-    (if f (cdr f)
-      #'ac-prefix-symbol)))
+;;;;;;;;;;;;;;;;;;;; Document functions ;;;;;;;;;;;;;;;;;;;;
+(defun ac-ctags-document (item)
+  (let ((func (ac-ctags-get-document-function major-mode ac-ctags-document-function-table)))
+    (when func
+      (funcall func item))))
 
 (defun ac-ctags-get-document-function (mode table)
   (cdr (assoc mode table)))
@@ -525,6 +528,7 @@ TAGS is expected to be an absolute path name."
       (reduce (lambda (x y) (concat x "\n" y)) lst))
      (t ac-ctags-no-document-message))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ac-source-ctags
 (ac-define-source ctags
   '((candidates . ac-ctags-candidates)
