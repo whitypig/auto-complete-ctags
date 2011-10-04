@@ -99,6 +99,8 @@ example.
     (c-mode . ac-ctags-c-document))
   "A table of document functions")
 
+(defconst ac-ctags-no-document-message "No document available.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file (file &optional new)
   "Visit tags file."
@@ -288,8 +290,9 @@ TAGS is expected to be an absolute path name."
         when (and (string= name (car e))
                   (not (null (caddr e))))
         collect (ac-ctags-construct-signature
-                 (concat name (caddr e))
-                 (cadr e))))
+                 name
+                 (cadr e)               ; cmd
+                 (caddr e))))           ; signature
 
 (defun ac-ctags-get-signature-by-mode (name db mode)
   "Return a list containing signatures corresponding `name'."
@@ -302,11 +305,12 @@ TAGS is expected to be an absolute path name."
             (setq sigs (append siglst sigs))))))
     (sort sigs #'string<)))
 
-(defun ac-ctags-construct-signature (signature cmd)
+(defun ac-ctags-construct-signature (name cmd signature)
   "Construct a full signature if possible."
-  (if (string-match (regexp-quote (ac-ctags-strip-class-name signature))
+  (if (string-match (regexp-quote (ac-ctags-strip-class-name name))
                     cmd)
       (concat (substring-no-properties cmd 0 (match-beginning 0))
+              name
               signature)
     signature))
 
@@ -500,7 +504,7 @@ TAGS is expected to be an absolute path name."
   (cdr (assoc mode table)))
 
 (defun ac-ctags-c++-document (item)
-  "Documentation function for c++-mode."
+  "Document function for c++-mode."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
                                              ac-ctags-tags-db
                                              'c++-mode)))
@@ -508,9 +512,10 @@ TAGS is expected to be an absolute path name."
      ((= (length lst) 1) (car lst))
      ((> (length lst) 1)
       (reduce (lambda (x y) (concat x "\n" y)) lst))
-     (t "No document available."))))
+     (t ac-ctags-no-document-message))))
 
 (defun ac-ctags-c-document (item)
+  "Document function for c-mode."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
                                              ac-ctags-tags-db
                                              'c-mode)))
@@ -518,7 +523,7 @@ TAGS is expected to be an absolute path name."
      ((= (length lst) 1) (car lst))
      ((> (length lst) 1)
       (reduce (lambda (x y) (concat x "\n" y)) lst))
-     (t "No document available."))))
+     (t ac-ctags-no-document-message))))
 
 ;; ac-source-ctags
 (ac-define-source ctags
