@@ -204,7 +204,7 @@ current list."
         (search-forward needle nil t)))))
 
 (defun ac-ctags-build-tagsdb (tags-list tags-db)
-  "Build tagsdb from each element of TAGSLIST."
+  "Build tagsdb from each element of TAGS-LIST."
   (dolist (e tags-list tags-db)
     (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))))
 
