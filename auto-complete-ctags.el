@@ -474,7 +474,9 @@ TAGS is expected to be an absolute path name."
     ;; ac-dictionary-candidates, which I think are essential.
     (setq candidates
           (sort (append (all-completions ac-target ac-ctags-current-completion-table)
-                        (ac-ctags-same-mode-candidates))
+                        ;; Commented out the following for a testing purpose
+                        ;; (ac-ctags-same-mode-candidates)
+                        )
                 #'string<))
     ;; For now, comment out the below because calling
     ;; ac-buffer-dictionary causes some problems.
