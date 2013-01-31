@@ -423,6 +423,12 @@ ctags."
             (ac-ctags-construct-signature "Test.helloWorld"
                                           "public void helloWorld() {"
                                           "method"
+                                          "()")))
+  (should
+   (string= "helloWorld()"
+            (ac-ctags-construct-signature "helloWorld"
+                                          "helloWorld()"
+                                          "method"
                                           "()"))))
 
 (ert-deftest test-ac-ctags-strip-class-name ()
