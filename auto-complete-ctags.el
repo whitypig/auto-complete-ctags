@@ -529,6 +529,8 @@ TAGS is expected to be an absolute path name."
 (ac-define-source ctags-java-method
   '((candidates . (ac-ctags-java-method-candidates))
     (cache)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
     (requires . 0)
     (prefix . "\\.\\(.*\\)")))
 
