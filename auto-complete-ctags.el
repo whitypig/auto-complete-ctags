@@ -74,9 +74,9 @@
   "An association list with keys being languages and values being
 the information extracted from tags file created by ctags
 program. The following is an example:
-`((\"C++\" (name command kind signature)...)
+`((\"C++\" (name command kind class signature)...)
   (\"C\" (name command kind signature)...)
-  (\"Java\" (name command kind signature)...)
+  (\"Java\" (name command kind class signature)...)
   (\"Others\" (name command kind signature)...)'")
 
 (defvar ac-ctags-completion-table nil
@@ -228,7 +228,7 @@ TAGS is expected to be an absolute path name."
       (while (re-search-forward
               "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
               nil t)
-        (let (line name cmd kind (lang "Others") signature)
+        (let (line name cmd kind (lang "Others") signature class)
           (setq line (match-string-no-properties 0)
                 name (match-string-no-properties 1)
                 cmd (ac-ctags-trim-whitespace
@@ -241,26 +241,32 @@ TAGS is expected to be an absolute path name."
             (setq signature (match-string-no-properties 1 line)))
           (when (string-match "kind:\\([^\t\n]+\\)" line)
             (setq kind (match-string-no-properties 1 line)))
+          (when (string-match "class:\\([^\t\n]+\\)" line)
+            (setq class (match-string-no-properties 1 line)))
           (if (assoc lang tags-db)
-              (push `(,name ,cmd ,kind ,signature)
+              (push `(,name ,cmd ,kind ,class ,signature)
                     (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,cmd ,kind ,signature))
+            (push `(,lang (,name ,cmd ,kind ,class ,signature))
                   tags-db)))
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
   tags-db)
 
+;; node is (name command kind class signature)
 (defun ac-ctags-node-name (node)
   (car node))
 
 (defun ac-ctags-node-command (node)
-  (cadr node))
+  (nth 1 node))
 
 (defun ac-ctags-node-kind (node)
-  (caddr node))
+  (nth 2 node))
+
+(defun ac-ctags-node-class (node)
+  (nth 3 node))
 
 (defun ac-ctags-node-signature (node)
-  (cadddr node))
+  (nth 4 node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
@@ -514,6 +520,33 @@ TAGS is expected to be an absolute path name."
          (characterp c2)
          (char-equal c1 ?:)
          (char-equal c2 ?:))))
+
+;;;;;;;;;;;;; candidates functions for java  ;;;;;;;;;;;;;
+(defun ac-ctags-java-method-candidates-1 (classname prefix)
+  "Return method candidates which belong to class CLASSNAME and
+whose name begins with PREFIX. If PREFIX is nil, return all
+methods in CLASSNAME. If CLASSNAME is nil, return nil."
+  (cond
+   ((null prefix)
+    (ac-ctags-collect-methods-in-class classname))
+   (t
+    (all-completions prefix (ac-ctags-collect-methods-in-class classname)))))
+
+(defun ac-ctags-java-collect-methods-in-class (classname)
+  "Return a list of method names which belong to CLASSNAME."
+  (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+        with ret = nil
+        for kind = (ac-ctags-node-kind lst)
+        for class = (ac-ctags-node-class lst)
+        when (and classname
+                  kind
+                  (string= "method"
+                           kind)
+                  (string= classname
+                           class))
+        do (push (car lst) ret)
+        finally (return (sort ret #'string<))))
+
 
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)
