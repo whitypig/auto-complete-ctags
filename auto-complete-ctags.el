@@ -498,32 +498,14 @@ TAGS is expected to be an absolute path name."
 (defun ac-ctags-candidates ()
   (let ((candidates nil))
     (ac-ctags-update-current-completion-table major-mode)
-    ;; Workaround to include same-mode-candidates and
-    ;; ac-dictionary-candidates, which I think are essential.
     (setq candidates
-          (sort (append (all-completions ac-prefix ac-ctags-current-completion-table)
-                        ;; Commented out the following for a testing purpose
-                        ;; (ac-ctags-same-mode-candidates)
-                        )
+          (sort (all-completions ac-prefix ac-ctags-current-completion-table)
                 #'string<))
-    ;; For now, comment out the below because calling
-    ;; ac-buffer-dictionary causes some problems.
-    ;; (setq candidates (sort (append (ac-ctags-buffer-dictionary-candidates)
-    ;;                                candidates)
-    ;;                        #'string<))
     (let ((len (length candidates)))
       (if (and (numberp ac-ctags-candidate-limit)
                (> len ac-ctags-candidate-limit))
           (nbutlast candidates (- len ac-ctags-candidate-limit))
         candidates))))
-
-(defun ac-ctags-same-mode-candidates ()
-  (ac-word-candidates
-   (lambda (buffer)
-     (derived-mode-p (buffer-local-value 'major-mode buffer)))))
-
-(defun ac-ctags-buffer-dictionary-candidates ()
-  (ac-buffer-dictionary))
 
 (defun ac-ctags-skip-to-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
