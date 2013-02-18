@@ -473,7 +473,7 @@ TAGS is expected to be an absolute path name."
     ;; Workaround to include same-mode-candidates and
     ;; ac-dictionary-candidates, which I think are essential.
     (setq candidates
-          (sort (append (all-completions ac-target ac-ctags-current-completion-table)
+          (sort (append (all-completions ac-prefix ac-ctags-current-completion-table)
                         ;; Commented out the following for a testing purpose
                         ;; (ac-ctags-same-mode-candidates)
                         )
