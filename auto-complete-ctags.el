@@ -104,6 +104,8 @@ example.
 (defvar ac-ctags-current-major-mode nil
   "Current major mode")
 
+(defvar ac-ctags-ac-sources-alist '((java-mode . (ac-source-ctags-java-method))))
+
 (defconst ac-ctags-no-document-message "No document available.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -237,8 +239,7 @@ TAGS is expected to be an absolute path name."
             (setq lang (match-string-no-properties 1 line)))
           ;; If this line contains a signature, we get it.
           (when (string-match "signature:\\([^\t\n]+\\)" line)
-            (setq signature
-                  (ac-ctags-make-signature (match-string-no-properties 1 line))))
+            (setq signature (match-string-no-properties 1 line)))
           (when (string-match "kind:\\([^\t\n]+\\)" line)
             (setq kind (match-string-no-properties 1 line)))
           (when (string-match "class:\\([^\t\n]+\\)" line)
@@ -317,17 +318,28 @@ TAGS is expected to be an absolute path name."
     vec))
 
 (defun ac-ctags-update-current-completion-table (mode)
+  "Switch completion table. MODE represents the current major mode."
   (when (ac-ctags-major-mode-has-changed-p mode)
     (let ((vec (make-vector ac-ctags-vector-default-size 0)))
       (setq vec (ac-ctags-build-current-completion-table
                  vec
                  ac-ctags-completion-table))
       (setq ac-ctags-current-completion-table vec
-            ac-ctags-current-major-mode mode))))
+            ac-ctags-current-major-mode mode)
+      )))
 
 (defun ac-ctags-major-mode-has-changed-p (mode)
   (or (null ac-ctags-current-major-mode)
       (not (eq mode ac-ctags-current-major-mode))))
+
+(defun ac-ctags-update-ac-sources (from-mode to-mode)
+  "Add and remove sources to and from `ac-sources' depending on
+FROM-MODE and TO-MODE."
+  (let ((sources-to-remove (ac-ctags-get-ac-sources-by-mode from-mode))
+        (sources-to-add (ac-ctags-get-ac-sources-by-mode to-mode)))
+    (setq ac-sources
+          (nunion (nset-difference ac-sources sources-to-remove)
+                  sources-to-add))))
 
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
@@ -416,6 +428,9 @@ TAGS is expected to be an absolute path name."
   (or (cadr (assoc mode ac-ctags-mode-to-string-table))
       '("Others")))
 
+(defun ac-ctags-get-ac-sources-by-mode (mode)
+  (cdr (assoc mode ac-ctags-ac-sources-alist)))
+
 ;;;;;;;;;;;;;;;;;;;; ac-ctags-select-tags-list-mode ;;;;;;;;;;;;;;;;;;;;
 (require 'button)
 
@@ -498,6 +513,7 @@ TAGS is expected to be an absolute path name."
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil))
+    (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
     (ac-ctags-update-current-completion-table major-mode)
     (setq candidates
           (sort (all-completions ac-prefix ac-ctags-current-completion-table)

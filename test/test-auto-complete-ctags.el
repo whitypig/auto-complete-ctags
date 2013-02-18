@@ -231,8 +231,8 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-valid-gtest-tagfile 'new)
      (should
-      (equal '("GTEST_API_ void InitGoogleTest(int*, wchar_t**)"
-               "GTEST_API_ void InitGoogleTest(int*, char**)")
+      (equal '("GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"
+               "GTEST_API_ void InitGoogleTest(int* argc, char** argv)")
              (ac-ctags-get-signature "InitGoogleTest" ac-ctags-tags-db "C++")))
      (should
       (null (ac-ctags-get-signature "EXPECT_EQ"
@@ -250,7 +250,7 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile)
      (should
-      (string= "void overloaded_func(double)\nvoid overloaded_func(int)"
+      (string= "void overloaded_func(double d)\nvoid overloaded_func(int i)"
                (ac-ctags-c++-document "overloaded_func")))
      (should
       (string= "void normal_func()"
@@ -264,10 +264,10 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-c-tagsfile)
      (should
-      (string= "void simple_func()"
+      (string= "void simple_func(void)"
                (ac-ctags-c-document "simple_func")))
      (should
-      (string= "void simple_func2(int, int)"
+      (string= "void simple_func2(int a, int b)"
                (ac-ctags-c-document "simple_func2")))
      (should
       (string= ac-ctags-no-document-message
@@ -494,7 +494,7 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int, String)")
+       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int i, String str)")
        (ac-ctags-java-method-candidates-1 "SampleClass" nil)))
      (should
       (equal
@@ -512,7 +512,7 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int, String)")
+       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int i, String str)")
        (ac-ctags-java-collect-methods-in-class "SampleClass")))
      (should
       (null (ac-ctags-java-collect-methods-in-class "NoneExist")))
@@ -566,4 +566,29 @@ ctags."
                    (ac-ctags-make-signature
                     "(final String s)")))
   (should (string= "(Object, Collection<String>)"
-                   (ac-ctags-make-signature "(Object object, Collection<String> strings)"))))
+                   (ac-ctags-make-signature "(Object object, Collection<String> strings)")))
+  (should
+   (string= "(String, Matcher<? super String>)"
+            (ac-ctags-make-signature
+             "(String sniperId, Matcher<? super String> messageMatcher)"))))
+
+(ert-deftest test-ac-ctags-update-ac-sources ()
+  (let ((ac-sources '(ac-source-words-in-same-mode-buffers)))
+    (should (not (member 'ac-source-ctags-java-method
+                         ac-sources)))
+    ;; transition from nil to java-mode
+    (ac-ctags-update-ac-sources nil 'java-mode)
+    (should (member 'ac-source-ctags-java-method ac-sources))
+    ;; transition from java-mode to c++-mode
+    (ac-ctags-update-ac-sources 'java-mode 'c++-mode)
+    (should (not (member 'ac-source-ctags-java-method
+                         ac-sources)))
+    ;; transition from c++-mode to java-mode
+    (ac-ctags-update-ac-sources 'c++-mode 'java-mode)
+    (should (member 'ac-source-ctags-java-method
+                    ac-sources))))
+
+(ert-deftest test-ac-ctags-get-ac-sources-by-mode ()
+  (should
+   (equal '(ac-source-ctags-java-method)
+          (ac-ctags-get-ac-sources-by-mode 'java-mode))))
