@@ -322,7 +322,8 @@ TAGS is expected to be an absolute path name."
       (setq vec (ac-ctags-build-current-completion-table
                  vec
                  ac-ctags-completion-table))
-      (setq ac-ctags-current-completion-table vec))))
+      (setq ac-ctags-current-completion-table vec
+            ac-ctags-current-major-mode mode))))
 
 (defun ac-ctags-major-mode-has-changed-p (mode)
   (or (null ac-ctags-current-major-mode)
