@@ -1,4 +1,4 @@
-(load "../auto-complete-ctags.el")
+;(load "../auto-complete-ctags.el")
 (require 'ert)
 (eval-when-compile
   (require 'cl))
@@ -7,7 +7,10 @@
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.tags")
 (defconst test-ac-ctags-cpp-tagsfile "cpp.tags")
 (defconst test-ac-ctags-java-tagsfile "java.tags")
+(defconst test-ac-ctags-java-tagsfile2 "java.ctags")
 (defconst test-ac-ctags-c-tagsfile "c.tags")
+
+(defconst test-ac-ctags-node-length 5)
 
 (defun test-ac-ctags-fixture (body)
   (let ((ac-ctags-tags-db nil)
@@ -103,9 +106,10 @@ ctags."
     (should (not (null (cdar db))))
     (should (listp (cdar db)))
     (should (string= "C" (caar db)))
-    ;; Check if the length of each element is 3.
+    ;; Check if the length of each element is test-ac-ctags-node-length.
     (should (loop for e in (cdar db)
-                  do (unless (= (length e) 4) (return nil))
+                  do (unless (= (length e) test-ac-ctags-node-length)
+                       (return nil))
                   finally return t))))
 
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:cpp-tags ()
@@ -120,9 +124,10 @@ ctags."
     (should (not (null (cdar db))))
     (should (listp (cdar db)))
     (should (string= "C++" (caar db)))
-    ;; Check if the length of each element is 3.
+    ;; Check if the length of each element is equal to test-ac-ctags-node-length
     (should (loop for e in (cdar db)
-                  do (unless (= (length e) 4) (return nil))
+                  do (unless (= (length e) test-ac-ctags-node-length)
+                       (return nil))
                   finally return t))))
 
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:java-tags ()
@@ -137,9 +142,10 @@ ctags."
     (should (not (null (cdar db))))
     (should (listp (cdar db)))
     (should (string= "Java" (caar db)))
-    ;; Check if the length of each element is 3.
+    ;; Check if the length of each element is equal to test-ac-ctags-node-length
     (should (loop for e in (cdar db)
-                  do (unless (= (length e) 4) (return nil))
+                  do (unless (= (length e) test-ac-ctags-node-length)
+                       (return nil))
                   finally return t))))
 
 (ert-deftest test-ac-ctags-trim-whitespace ()
@@ -160,7 +166,8 @@ ctags."
     (should (string= "C++" (car cpp-db)))
     (should (listp (cdr cpp-db)))
     (should (loop for e in (cdr cpp-db)
-                  do (unless (= (length e) 4) (return nil))
+                  do (unless (= (length e) test-ac-ctags-node-length)
+                       (return nil))
                   finally return t))
     ;; Check java-db
     (should (listp java-db))
@@ -168,7 +175,8 @@ ctags."
     (should (string= "Java" (car java-db)))
     (should (listp (cdr java-db)))
     (should (loop for e in (cdr java-db)
-                  do (unless (= (length e) 4) (return nil))
+                  do (unless (= (length e) test-ac-ctags-node-length)
+                       (return nil))
                   finally return t))))
 
 (ert-deftest test-ac-ctags-build-completion-table:cpp-tags ()
@@ -439,18 +447,21 @@ ctags."
 
 ;; node => (name cmd kind signature)
 (ert-deftest test-ac-ctags-node-access ()
-  (should (string= "name"
-                   (ac-ctags-node-name '("name" "cmd" "kind" "signature"))))
-  (should (string= "cmd"
-                   (ac-ctags-node-command '("name" "cmd" "kind" "signature"))))
-  (should (string= "kind"
-                   (ac-ctags-node-kind '("name" "cmd" "kind" "signature"))))
-  (should (string= "signature"
-                   (ac-ctags-node-signature '("name" "cmd" "kind" "signature"))))
-  (should (null
-           (ac-ctags-node-kind '("name" "cmd" nil "signature"))))
-  (should (null
-           (ac-ctags-node-signature '("name" "cmd" nil nil)))))
+  (let ((node '("name" "cmd" "kind" "class" "signature")))
+    (should (string= "name"
+                     (ac-ctags-node-name node)))
+    (should (string= "cmd"
+                     (ac-ctags-node-command node)))
+    (should (string= "kind"
+                     (ac-ctags-node-kind node)))
+    (should (string= "class"
+                     (ac-ctags-node-class node)))
+    (should (string= "signature"
+                     (ac-ctags-node-signature node)))
+    (should (null
+             (ac-ctags-node-kind '("name" "cmd" nil "class" "signature"))))
+    (should (null
+             (ac-ctags-node-signature '("name" "cmd" nil "class" nil))))))
 
 (ert-deftest test-ac-ctags-get-signature:java ()
   (test-ac-ctags-fixture
@@ -474,4 +485,35 @@ ctags."
                (ac-ctags-java-document "helloAnotherWorld")))
      (should
       (string= "public void Test.helloWorld()"
-               (ac-ctags-java-document "Test.helloWorld"))))))
+               (ac-ctags-java-document "Test.helloWorld")))
+     )))
+
+(ert-deftest test-ac-ctags-java-method-candidates-1 ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (should
+      (equal
+       '("helloAnotherWorld" "helloWorld")
+       (ac-ctags-java-method-candidates-1 "SampleClass" nil)))
+     (should
+      (equal
+       '("helloAnotherWorld")
+       (ac-ctags-java-method-candidates-1 "SampleClass" "helloA")))
+     (should
+      (null
+       (ac-ctags-java-method-candidates-1 "SampleClass" "none")))
+     (should
+      (null (ac-ctags-java-method-candidates-1 nil nil))))))
+
+(ert-deftest test-ac-ctags-java-collect-methods-in-class ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (should
+      (equal
+       '("helloAnotherWorld" "helloWorld")
+       (ac-ctags-java-collect-methods-in-class "SampleClass")))
+     (should
+      (null (ac-ctags-java-collect-methods-in-class "NoneExist")))
+     )))
