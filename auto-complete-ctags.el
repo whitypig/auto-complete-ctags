@@ -25,8 +25,7 @@
 ;;; Code:
 
 (require 'auto-complete)
-(eval-when-compile
-  (require 'cl))
+(require 'cl)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Customize ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defgroup auto-complete-ctags nil
@@ -238,7 +237,8 @@ TAGS is expected to be an absolute path name."
             (setq lang (match-string-no-properties 1 line)))
           ;; If this line contains a signature, we get it.
           (when (string-match "signature:\\([^\t\n]+\\)" line)
-            (setq signature (match-string-no-properties 1 line)))
+            (setq signature
+                  (ac-ctags-make-signature (match-string-no-properties 1 line))))
           (when (string-match "kind:\\([^\t\n]+\\)" line)
             (setq kind (match-string-no-properties 1 line)))
           (when (string-match "class:\\([^\t\n]+\\)" line)
@@ -251,6 +251,28 @@ TAGS is expected to be an absolute path name."
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
   tags-db)
+
+(defun ac-ctags-make-signature (tag-signature)
+  "Return string of signature created using TAG-SIGNATURE."
+  (cond
+   ((string= tag-signature "()")
+    tag-signature)
+   ((string= tag-signature "(void)")
+    "()")
+   (t
+    (let ((str (substring-no-properties tag-signature
+                                        1
+                                        (1- (length tag-signature)))))
+      (concat "("
+              (reduce (lambda (x y)
+                        (concat x ", " y))
+                      (mapcar (lambda (l)
+                                (if (> (length l) 2)
+                                    (nth 1 l)
+                                  (car l)))
+                              (mapcar #'split-string
+                                      (split-string str "[,]"))))
+              ")")))))
 
 ;; node is (name command kind class signature)
 (defun ac-ctags-node-name (node)
@@ -522,15 +544,28 @@ TAGS is expected to be an absolute path name."
          (char-equal c2 ?:))))
 
 ;;;;;;;;;;;;; candidates functions for java  ;;;;;;;;;;;;;
+(ac-define-source ctags-java-method
+  '((candidates . (ac-ctags-java-method-candidates))
+    (cache)
+    (requires . 0)
+    (prefix . "\\.\\(.*\\)")))
+
+;; ac-prefix is '\\.\\(.*\\)'
+(defun ac-ctags-java-method-candidates ()
+  "Candidates function of `ac-source-ctags-java-method'."
+  (ac-ctags-java-method-candidates-1
+   (ac-ctags-java-determine-class-name) ac-prefix))
+
 (defun ac-ctags-java-method-candidates-1 (classname prefix)
   "Return method candidates which belong to class CLASSNAME and
 whose name begins with PREFIX. If PREFIX is nil, return all
 methods in CLASSNAME. If CLASSNAME is nil, return nil."
   (cond
+   ((null classname) nil)
    ((null prefix)
-    (ac-ctags-collect-methods-in-class classname))
+    (ac-ctags-java-collect-methods-in-class classname))
    (t
-    (all-completions prefix (ac-ctags-collect-methods-in-class classname)))))
+    (all-completions prefix (ac-ctags-java-collect-methods-in-class classname)))))
 
 (defun ac-ctags-java-collect-methods-in-class (classname)
   "Return a list of method names which belong to CLASSNAME."
@@ -544,9 +579,79 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                            kind)
                   (string= classname
                            class))
-        do (push (car lst) ret)
+        do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
 
+(defun ac-ctags-java-make-method-candidate (node)
+  "Return presentation form of NODE."
+  (concat (ac-ctags-node-name node)
+          (ac-ctags-node-signature node)))
+
+(defun ac-ctags-java-determine-class-name ()
+  "Retrun a classname if possible, nil otherwise."
+  ;; ac-prefix for method candidates is '\\.\\(.*\\)'
+  (let ((case-fold-search nil)
+        (varname
+         (save-excursion
+           (ac-ctags-trim-whitespace
+            (buffer-substring-no-properties
+             (re-search-backward "\\." (line-beginning-position) t 1)
+             (1+ (re-search-backward "[ ().\t]" (line-beginning-position) t 1)))))))
+    (cond
+     ((string-match "^[A-Z].*" varname)
+      varname)
+     ((string-match "^[_a-z].*" varname)
+      ;; varname seems a valid variable name
+      (ac-ctags-java-extract-class-name
+       (ac-ctags-java-extract-variable-line varname) varname))
+     (t
+      nil))))
+
+(defun ac-ctags-java-extract-class-name (line varname)
+  "Extract a classname of VARNAME from LINE and return it if found, or nil."
+  (when (string-match (concat "\\([A-Z][A-Za-z0-9_]+\\)\\(<[^ ]+>\\)?[ \t]+"
+                              varname)
+                      line)
+    (match-string-no-properties 1 line)))
+
+(defun ac-ctags-java-extract-variable-line (varname)
+  "Return string which we has inferred has a typename of VARNAME."
+  (or (ac-ctags-java-extract-variable-line-1 varname
+                                             (point-min)
+                                             (point))
+      (ac-ctags-java-extract-variable-line-1 varnmae
+                                             (1+ (point))
+                                             (point-max))))
+
+(defun ac-ctags-java-extract-variable-line-1 (varname beg end)
+  (save-excursion
+    (loop while (re-search-forward (concat "[ \t]" varname "[; =)]")
+                                   end
+                                   t)
+          initially do (goto-char beg)
+          when (ac-ctags-java-line-has-typeinfo-p
+                varname
+                (buffer-substring-no-properties (line-beginning-position)
+                                                (line-end-position)))
+          return (buffer-substring-no-properties (line-beginning-position)
+                                                 (line-end-position)))))
+
+(defun ac-ctags-java-line-has-typeinfo-p (varname line)
+  "Return t if this LINE contains type name, or nil."
+  (let ((type-regexp (concat
+                      "\\([[:alpha:]][[:alnum:]]+[.]?\\)+"
+                      "\\(<[^=]*>\\)*"
+                      "\\(\\[\\]\\)*"
+                      "[[:space:]]+"
+                      ))
+        (exclude-regexp "return"))
+    (and (string-match-p (concat type-regexp
+                                 varname
+                                 "[,=;)[:space:]]"
+                                 )
+                         line)
+         (not (string-match-p exclude-regexp line))
+         (not (string-match-p "^[[:space:]]*//" line)))))
 
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)

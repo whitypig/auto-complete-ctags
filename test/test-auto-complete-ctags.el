@@ -231,8 +231,8 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-valid-gtest-tagfile 'new)
      (should
-      (equal '("GTEST_API_ void InitGoogleTest(int* argc, wchar_t** argv)"
-               "GTEST_API_ void InitGoogleTest(int* argc, char** argv)")
+      (equal '("GTEST_API_ void InitGoogleTest(int*, wchar_t**)"
+               "GTEST_API_ void InitGoogleTest(int*, char**)")
              (ac-ctags-get-signature "InitGoogleTest" ac-ctags-tags-db "C++")))
      (should
       (null (ac-ctags-get-signature "EXPECT_EQ"
@@ -250,7 +250,7 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile)
      (should
-      (string= "void overloaded_func(double d)\nvoid overloaded_func(int i)"
+      (string= "void overloaded_func(double)\nvoid overloaded_func(int)"
                (ac-ctags-c++-document "overloaded_func")))
      (should
       (string= "void normal_func()"
@@ -264,10 +264,10 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-c-tagsfile)
      (should
-      (string= "void simple_func(void)"
+      (string= "void simple_func()"
                (ac-ctags-c-document "simple_func")))
      (should
-      (string= "void simple_func2(int a, int b)"
+      (string= "void simple_func2(int, int)"
                (ac-ctags-c-document "simple_func2")))
      (should
       (string= ac-ctags-no-document-message
@@ -494,11 +494,11 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("helloAnotherWorld" "helloWorld")
+       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int, String)")
        (ac-ctags-java-method-candidates-1 "SampleClass" nil)))
      (should
       (equal
-       '("helloAnotherWorld")
+       '("helloAnotherWorld()")
        (ac-ctags-java-method-candidates-1 "SampleClass" "helloA")))
      (should
       (null
@@ -512,8 +512,58 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("helloAnotherWorld" "helloWorld")
+       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int, String)")
        (ac-ctags-java-collect-methods-in-class "SampleClass")))
      (should
       (null (ac-ctags-java-collect-methods-in-class "NoneExist")))
      )))
+
+(ert-deftest test-ac-ctags-java-extract-class-name ()
+  (should
+   (string= "ClassName"
+            (ac-ctags-java-extract-class-name
+             "ClassName varname;"
+             "varname")))
+  (should
+   (string= "ClassName"
+            (ac-ctags-java-extract-class-name
+             "ClassName<Some<Another>> varname;"
+             "varname")))
+  (should
+   (string= "ClassName"
+            (ac-ctags-java-extract-class-name
+             "public void someMethod(ClassName varname) {"
+             "varname"))))
+
+(ert-deftest test-ac-ctags-java-make-method-candidate ()
+  (let ((node1 '("method" "cmd" "method" "SomeClass" "()"))
+        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int, String)")))
+    (should
+     (string= "method()"
+              (ac-ctags-java-make-method-candidate node1)))
+    (should
+     (string= "anotherMethod(int, String)"
+              (ac-ctags-java-make-method-candidate node2)))))
+
+(ert-deftest test-ac-ctags-make-signature ()
+  (should (string= "(int, int)"
+                   (ac-ctags-make-signature "(int a, int b)")))
+  (should (string= "(int, int)"
+                   (ac-ctags-make-signature "(int, int)")))
+  (should (string= "()"
+                   (ac-ctags-make-signature "()")))
+  (should (string= "(int, String)"
+                   (ac-ctags-make-signature "(int i, String str)")))
+  (should (string= "()"
+                   (ac-ctags-make-signature "(void)")))
+  (should (string= "(String...)"
+                   (ac-ctags-make-signature "(String... strs)")))
+  (should (string= "(int, String...)"
+                   (ac-ctags-make-signature "(int i, String... strs)")))
+  (should (string= "(int[], int[])"
+                   (ac-ctags-make-signature "(int[] arraya, int[] arrayb)")))
+  (should (string= "(String)"
+                   (ac-ctags-make-signature
+                    "(final String s)")))
+  (should (string= "(Object, Collection<String>)"
+                   (ac-ctags-make-signature "(Object object, Collection<String> strings)"))))
