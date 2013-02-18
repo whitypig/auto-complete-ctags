@@ -574,12 +574,14 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
         with ret = nil
         for kind = (ac-ctags-node-kind lst)
         for class = (ac-ctags-node-class lst)
-        when (and classname
+        when (and class
                   kind
                   (string= "method"
                            kind)
-                  (string= classname
-                           class))
+                  (string-match (concat "[.]?"
+                                        classname
+                                        "$")
+                                class))
         do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
 

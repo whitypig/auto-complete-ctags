@@ -537,12 +537,12 @@ ctags."
 
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
   (let ((node1 '("method" "cmd" "method" "SomeClass" "()"))
-        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int, String)")))
+        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)")))
     (should
      (string= "method()"
               (ac-ctags-java-make-method-candidate node1)))
     (should
-     (string= "anotherMethod(int, String)"
+     (string= "anotherMethod(int i, String s)"
               (ac-ctags-java-make-method-candidate node2)))))
 
 (ert-deftest test-ac-ctags-make-signature ()
@@ -567,10 +567,7 @@ ctags."
                     "(final String s)")))
   (should (string= "(Object, Collection<String>)"
                    (ac-ctags-make-signature "(Object object, Collection<String> strings)")))
-  (should
-   (string= "(String, Matcher<? super String>)"
-            (ac-ctags-make-signature
-             "(String sniperId, Matcher<? super String> messageMatcher)"))))
+  )
 
 (ert-deftest test-ac-ctags-update-ac-sources ()
   (let ((ac-sources '(ac-source-words-in-same-mode-buffers)))
