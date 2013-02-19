@@ -608,6 +608,8 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                 (buffer-substring-no-properties beg end)))))
     (when (stringp varname)
       (cond
+       ((string= "this" varname)
+        (ac-ctags-java-current-class-name))
        ((string-match "^[A-Z].*" varname)
         varname)
        ((string-match "^[_a-z].*" varname)
@@ -616,6 +618,25 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
          (ac-ctags-java-extract-variable-line varname) varname))
        (t
         nil)))))
+
+(defun ac-ctags-java-current-class-name ()
+  "Return a classname where the current position is in, or nil."
+  (let ((case-fold-search nil))
+    (save-excursion
+      (loop with ret = nil
+            while (re-search-backward "class[ \t]+[A-Z][A-Za-z0-9_]+" nil (point-min))
+            do (setq ret (ac-ctags-java-has-class-name
+                          (buffer-substring-no-properties (line-beginning-position)
+                                                          (line-end-position))))
+            when ret
+            return ret))))
+
+(defun ac-ctags-java-has-class-name (line)
+  (when (string-match (concat
+                       "class[ \t]"
+                       "\\([A-Z][A-Za-z0-9_]+\\)")
+                      line)
+    (match-string-no-properties 1 line)))
 
 (defun ac-ctags-java-extract-class-name (line varname)
   "Extract a classname of VARNAME from LINE and return it if found, or nil."
