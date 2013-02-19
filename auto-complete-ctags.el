@@ -104,7 +104,8 @@ example.
 (defvar ac-ctags-current-major-mode nil
   "Current major mode")
 
-(defvar ac-ctags-ac-sources-alist '((java-mode . (ac-source-ctags-java-method))))
+(defvar ac-ctags-ac-sources-alist
+  '((java-mode . (ac-source-ctags-java-method ac-source-ctags-java-enum))))
 
 (defconst ac-ctags-no-document-message "No document available.")
 
@@ -229,7 +230,7 @@ TAGS is expected to be an absolute path name."
       (while (re-search-forward
               "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
               nil t)
-        (let (line name cmd kind (lang "Others") signature class)
+        (let (line name cmd kind (lang "Others") signature class enum)
           (setq line (match-string-no-properties 0)
                 name (match-string-no-properties 1)
                 cmd (ac-ctags-trim-whitespace
@@ -244,10 +245,12 @@ TAGS is expected to be an absolute path name."
             (setq kind (match-string-no-properties 1 line)))
           (when (string-match "class:\\([^\t\n]+\\)" line)
             (setq class (match-string-no-properties 1 line)))
+          (when (string-match "enum:\\([^\t\n]+\\)" line)
+            (setq enum (match-string-no-properties 1 line)))
           (if (assoc lang tags-db)
-              (push `(,name ,cmd ,kind ,class ,signature)
+              (push `(,name ,cmd ,kind ,class ,signature ,enum)
                     (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,cmd ,kind ,class ,signature))
+            (push `(,lang (,name ,cmd ,kind ,class ,signature ,enum))
                   tags-db)))
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
@@ -290,6 +293,9 @@ TAGS is expected to be an absolute path name."
 
 (defun ac-ctags-node-signature (node)
   (nth 4 node))
+
+(defun ac-ctags-node-enum (node)
+  (nth 5 node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
@@ -513,16 +519,17 @@ FROM-MODE and TO-MODE."
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil))
-    (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
-    (ac-ctags-update-current-completion-table major-mode)
-    (setq candidates
-          (sort (all-completions ac-prefix ac-ctags-current-completion-table)
-                #'string<))
-    (let ((len (length candidates)))
-      (if (and (numberp ac-ctags-candidate-limit)
-               (> len ac-ctags-candidate-limit))
-          (nbutlast candidates (- len ac-ctags-candidate-limit))
-        candidates))))
+    (when (stringp ac-prefix)
+      (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
+      (ac-ctags-update-current-completion-table major-mode)
+      (setq candidates
+            (sort (all-completions ac-prefix ac-ctags-current-completion-table)
+                  #'string<))
+      (let ((len (length candidates)))
+        (if (and (numberp ac-ctags-candidate-limit)
+                 (> len ac-ctags-candidate-limit))
+            (nbutlast candidates (- len ac-ctags-candidate-limit))
+          candidates)))))
 
 (defun ac-ctags-skip-to-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
@@ -553,6 +560,7 @@ FROM-MODE and TO-MODE."
 
 ;; ac-prefix is '\\.\\(.*\\)'
 (defun ac-ctags-java-method-candidates ()
+  ;;(message "DEBUG: ac-ctags-java-method-candidates, ac-prefix=%s" ac-prefix)
   "Candidates function of `ac-source-ctags-java-method'."
   (ac-ctags-java-method-candidates-1
    (ac-ctags-java-determine-class-name) ac-prefix))
@@ -576,12 +584,8 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
         for class = (ac-ctags-node-class lst)
         when (and class
                   kind
-                  (string= "method"
-                           kind)
-                  (string-match (concat "[.]?"
-                                        classname
-                                        "$")
-                                class))
+                  (string= "method" kind)
+                  (string-match (concat "[.]?" classname "$") class))
         do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
 
@@ -593,17 +597,19 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
 (defun ac-ctags-java-determine-class-name ()
   "Retrun a classname if possible, nil otherwise."
   ;; ac-prefix for method candidates is '\\.\\(.*\\)'
-  (let ((case-fold-search nil)
-        (varname
-         (save-excursion
-           (ac-ctags-trim-whitespace
-            (buffer-substring-no-properties
-             (re-search-backward "\\." (line-beginning-position) t 1)
-             (1+ (re-search-backward "[ ().\t]" (line-beginning-position) t 1)))))))
+  (let* ((case-fold-search nil)
+         (end (save-excursion (re-search-backward "\\." (line-beginning-position) t 1)))
+         (beg (save-excursion (goto-char end)
+                              (re-search-backward "[ ().\t]" (line-beginning-position) t 1)
+                              (1+ (point))))
+         (varname
+          (and (integerp beg) (integerp end) (< beg end)
+               (ac-ctags-trim-whitespace
+                (buffer-substring-no-properties beg end)))))
     (cond
-     ((string-match "^[A-Z].*" varname)
+     ((and (stringp varname) (string-match "^[A-Z].*" varname))
       varname)
-     ((string-match "^[_a-z].*" varname)
+     ((and (stringp varname) (string-match "^[_a-z].*" varname))
       ;; varname seems a valid variable name
       (ac-ctags-java-extract-class-name
        (ac-ctags-java-extract-variable-line varname) varname))
@@ -612,9 +618,11 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
 
 (defun ac-ctags-java-extract-class-name (line varname)
   "Extract a classname of VARNAME from LINE and return it if found, or nil."
-  (when (string-match (concat "\\([A-Z][A-Za-z0-9_]+\\)\\(<[^ ]+>\\)?[ \t]+"
-                              varname)
-                      line)
+  (when (and (stringp line)
+             (stringp varname)
+             (string-match (concat "\\([A-Z][A-Za-z0-9_]+\\)\\(<[^ ]+>\\)?[ \t]+"
+                                   varname)
+                           line))
     (match-string-no-properties 1 line)))
 
 (defun ac-ctags-java-extract-variable-line (varname)
@@ -622,7 +630,7 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
   (or (ac-ctags-java-extract-variable-line-1 varname
                                              (point-min)
                                              (point))
-      (ac-ctags-java-extract-variable-line-1 varnmae
+      (ac-ctags-java-extract-variable-line-1 varname
                                              (1+ (point))
                                              (point-max))))
 
@@ -655,6 +663,45 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                          line)
          (not (string-match-p exclude-regexp line))
          (not (string-match-p "^[[:space:]]*//" line)))))
+
+(ac-define-source ctags-java-enum
+  '((candidates . (ac-ctags-java-enum-candidates))
+    (cache)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 0)
+    (prefix . "[ \t(][A-Z][A-Za-z0-9_]+\\.\\([A-Za-z0-9_]*\\)")))
+
+(defun ac-ctags-java-enum-candidates ()
+  "Candidates function to complete enum."
+  ;;(message "DEBUG: ac-ctags-java-enum-candidates, ac-prefx=%s" ac-prefix)
+  (let ((case-fold-search nil)
+        (line (buffer-substring-no-properties (line-beginning-position)
+                                              (line-end-position))))
+    (when (string-match "[ \t(]\\([A-Z][A-Za-z0-9_]+\\)\\.[A-Za-z0-9_]*" line)
+      (ac-ctags-java-enum-candidates-1 (match-string-no-properties 1 line)
+                                       ac-prefix))))
+
+(defun ac-ctags-java-enum-candidates-1 (enum-typename prefix)
+  (cond
+   ((null enum-typename)
+    nil)
+   ((null prefix)
+    (ac-ctags-java-collect-enums enum-typename))
+   (t
+    (all-completions prefix (ac-ctags-java-collect-enums enum-typename)))))
+
+(defun ac-ctags-java-collect-enums (enum-typename)
+  (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+        with ret = nil
+        for kind = (ac-ctags-node-kind lst)
+        for enum = (ac-ctags-node-enum lst)
+        when (and enum
+                  kind
+                  (string= enum enum-typename)
+                  (string= "enum constant" kind))
+        do (push (car lst) ret)
+        finally (return (sort ret #'string<))))
 
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)
