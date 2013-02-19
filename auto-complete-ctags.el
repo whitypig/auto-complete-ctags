@@ -551,7 +551,7 @@ FROM-MODE and TO-MODE."
 
 ;;;;;;;;;;;;; candidates functions for java  ;;;;;;;;;;;;;
 (ac-define-source ctags-java-method
-  '((candidates . (ac-ctags-java-method-candidates))
+  '((candidates . ac-ctags-java-method-candidates)
     (cache)
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
@@ -606,15 +606,16 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
           (and (integerp beg) (integerp end) (< beg end)
                (ac-ctags-trim-whitespace
                 (buffer-substring-no-properties beg end)))))
-    (cond
-     ((and (stringp varname) (string-match "^[A-Z].*" varname))
-      varname)
-     ((and (stringp varname) (string-match "^[_a-z].*" varname))
-      ;; varname seems a valid variable name
-      (ac-ctags-java-extract-class-name
-       (ac-ctags-java-extract-variable-line varname) varname))
-     (t
-      nil))))
+    (when (stringp varname)
+      (cond
+       ((string-match "^[A-Z].*" varname)
+        varname)
+       ((string-match "^[_a-z].*" varname)
+        ;; varname seems a valid variable name
+        (ac-ctags-java-extract-class-name
+         (ac-ctags-java-extract-variable-line varname) varname))
+       (t
+        nil)))))
 
 (defun ac-ctags-java-extract-class-name (line varname)
   "Extract a classname of VARNAME from LINE and return it if found, or nil."
@@ -665,7 +666,7 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
          (not (string-match-p "^[[:space:]]*//" line)))))
 
 (ac-define-source ctags-java-enum
-  '((candidates . (ac-ctags-java-enum-candidates))
+  '((candidates . ac-ctags-java-enum-candidates)
     (cache)
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
