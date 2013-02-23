@@ -3,12 +3,12 @@
 (eval-when-compile
   (require 'cl))
 
-(defconst test-ac-ctags-valid-tagfile "cpp.tags")
+(defconst test-ac-ctags-valid-tagfile "cpp.ctags")
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.tags")
-(defconst test-ac-ctags-cpp-tagsfile "cpp.tags")
+(defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
 (defconst test-ac-ctags-java-tagsfile "java.tags")
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
-(defconst test-ac-ctags-c-tagsfile "c.tags")
+(defconst test-ac-ctags-c-tagsfile "c.ctags")
 
 (defconst test-ac-ctags-node-length 5)
 
@@ -147,6 +147,48 @@ ctags."
                   do (unless (= (length e) test-ac-ctags-node-length)
                        (return nil))
                   finally return t))))
+
+(ert-deftest test-ac-ctags-build-tagsdb-from-tags:java-check-returntype ()
+  (let* ((db nil)
+         (tags (expand-file-name test-ac-ctags-java-tagsfile2))
+         (db (ac-ctags-build-tagsdb-from-tags tags db))
+         (tbl nil)
+         (case-fold-search nil))
+    (setq tbl (cdr (assoc-default "Java" db)))
+    (should tbl)
+    (loop for entry in tbl
+          when (and (string= "method"
+                             (ac-ctags-node-kind entry))
+                    (string-match "^[a-z].*$" (ac-ctags-node-name entry)))
+          do (should (ac-ctags-node-returntype entry)))))
+
+(ert-deftest test-ac-ctags-build-tagsdb-from-tags:cpp-check-returntype ()
+  (let* ((db nil)
+         (tags (expand-file-name test-ac-ctags-cpp-tagsfile))
+         (db (ac-ctags-build-tagsdb-from-tags tags db))
+         (tbl nil)
+         (case-fold-search nil))
+    (setq tbl (cdr (assoc-default "C++" db)))
+    (should tbl)
+    (loop for entry in tbl
+          when (and (string= "function"
+                             (ac-ctags-node-kind entry))
+                    (string-match "^[a-z].*$" (ac-ctags-node-name entry)))
+          do (should (ac-ctags-node-returntype entry)))))
+
+(ert-deftest test-ac-ctags-build-tagsdb-from-tags:c-check-returntype ()
+  (let* ((db nil)
+         (tags (expand-file-name test-ac-ctags-c-tagsfile))
+         (db (ac-ctags-build-tagsdb-from-tags tags db))
+         (tbl nil)
+         (case-fold-search nil))
+    (setq tbl (cdr (assoc-default "C" db)))
+    (should tbl)
+    (loop for entry in tbl
+          when (and (string= "function"
+                             (ac-ctags-node-kind entry))
+                    (string-match "^[A-Za-z].*$" (ac-ctags-node-name entry)))
+          do (should (ac-ctags-node-returntype entry)))))
 
 (ert-deftest test-ac-ctags-trim-whitespace ()
   (should (string= "Hi" (ac-ctags-trim-whitespace "  	Hi")))
@@ -589,3 +631,4 @@ ctags."
   (should
    (equal '(ac-source-ctags-java-method)
           (ac-ctags-get-ac-sources-by-mode 'java-mode))))
+

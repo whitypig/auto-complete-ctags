@@ -230,7 +230,7 @@ TAGS is expected to be an absolute path name."
       (while (re-search-forward
               "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
               nil t)
-        (let (line name cmd kind (lang "Others") signature class enum)
+        (let (line name cmd kind (lang "Others") signature class enum returntype)
           (setq line (match-string-no-properties 0)
                 name (match-string-no-properties 1)
                 cmd (ac-ctags-trim-whitespace
@@ -247,10 +247,12 @@ TAGS is expected to be an absolute path name."
             (setq class (match-string-no-properties 1 line)))
           (when (string-match "enum:\\([^\t\n]+\\)" line)
             (setq enum (match-string-no-properties 1 line)))
+          (when (string-match "returntype:\\([^\t\n]+\\)" line)
+            (setq returntype (match-string-no-properties 1 line)))
           (if (assoc lang tags-db)
-              (push `(,name ,cmd ,kind ,class ,signature ,enum)
+              (push `(,name ,cmd ,kind ,class ,signature ,enum ,returntype)
                     (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,cmd ,kind ,class ,signature ,enum))
+            (push `(,lang (,name ,cmd ,kind ,class ,signature ,enum ,returntype))
                   tags-db)))
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
@@ -296,6 +298,9 @@ TAGS is expected to be an absolute path name."
 
 (defun ac-ctags-node-enum (node)
   (nth 5 node))
+
+(defun ac-ctags-node-returntype (node)
+  (nth 6 node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
@@ -519,14 +524,16 @@ FROM-MODE and TO-MODE."
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   (let ((candidates nil))
+    ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
+    (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
+    (ac-ctags-update-current-completion-table major-mode)
     (when (stringp ac-prefix)
-      (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
-      (ac-ctags-update-current-completion-table major-mode)
       (setq candidates
             (sort (all-completions ac-prefix ac-ctags-current-completion-table)
                   #'string<))
       (let ((len (length candidates)))
-        (if (and (numberp ac-ctags-candidate-limit)
+        (if (and candidates
+                 (numberp ac-ctags-candidate-limit)
                  (> len ac-ctags-candidate-limit))
             (nbutlast candidates (- len ac-ctags-candidate-limit))
           candidates)))))
@@ -599,9 +606,10 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
   ;; ac-prefix for method candidates is '\\.\\(.*\\)'
   (let* ((case-fold-search nil)
          (end (save-excursion (re-search-backward "\\." (line-beginning-position) t 1)))
-         (beg (save-excursion (goto-char end)
-                              (re-search-backward "[ ().\t]" (line-beginning-position) t 1)
-                              (1+ (point))))
+         (beg (save-excursion (and end
+                                   (goto-char end)
+                                   (re-search-backward "[ ().\t]" (line-beginning-position) t 1)
+                                   (1+ (point)))))
          (varname
           (and (integerp beg) (integerp end) (< beg end)
                (ac-ctags-trim-whitespace
