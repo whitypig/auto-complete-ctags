@@ -579,19 +579,27 @@ ctags."
 
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
   (let ((node1 '("method" "cmd" "method" "SomeClass" "()" nil "int"))
-        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)" nil "void")))
+        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)" nil "void"))
+        (node-ctor '("SampleClass" "cmd" "method" "SampleClass" "()" nil nil)))
     (should
      (string= "method()"
               (ac-ctags-java-make-method-candidate node1)))
     (should
-     (string= ":int"
+     (string= ":int - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node1))))
     (should
      (string= "anotherMethod(int i, String s)"
               (ac-ctags-java-make-method-candidate node2)))
     (should
-     (string= ":void"
-              (get-text-property 0 'view (ac-ctags-java-make-method-candidate node2))))))
+     (string= ":void - SomeClass"
+              (get-text-property 0 'view (ac-ctags-java-make-method-candidate node2))))
+    (should
+     (string= "SampleClass()"
+              (ac-ctags-java-make-method-candidate node-ctor)))
+    (should
+     (string= " - SampleClass"
+              (get-text-property 0 'view
+                                 (ac-ctags-java-make-method-candidate node-ctor))))))
 
 (ert-deftest test-ac-ctags-make-signature ()
   (should (string= "(int, int)"

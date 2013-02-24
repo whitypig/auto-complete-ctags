@@ -598,11 +598,15 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
         do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
 
+;; method :returntype - class
 (defun ac-ctags-java-make-method-candidate (node)
   "Return presentation form of NODE."
   (propertize (concat (ac-ctags-node-name node)
                       (ac-ctags-node-signature node))
-              'view (concat ":" (ac-ctags-node-returntype node))))
+              'view (concat (when
+                                (ac-ctags-node-returntype node)
+                              (concat ":" (ac-ctags-node-returntype node)))
+                            " - " (ac-ctags-node-class node))))
 
 (defun ac-ctags-java-determine-class-name ()
   "Retrun a classname if possible, nil otherwise."
