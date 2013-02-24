@@ -592,7 +592,9 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
         when (and class
                   kind
                   (string= "method" kind)
-                  (string-match (concat "[.]?" classname "$") class))
+                  (or (string-match (concat "^" classname "$") class)
+                      ;; To include OuterClass.InnerClass notation
+                      (string-match (concat "\\." classname "$") class)))
         do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
 
