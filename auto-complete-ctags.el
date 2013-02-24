@@ -600,8 +600,9 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
 
 (defun ac-ctags-java-make-method-candidate (node)
   "Return presentation form of NODE."
-  (concat (ac-ctags-node-name node)
-          (ac-ctags-node-signature node)))
+  (propertize (concat (ac-ctags-node-name node)
+                      (ac-ctags-node-signature node))
+              'view (concat ":" (ac-ctags-node-returntype node))))
 
 (defun ac-ctags-java-determine-class-name ()
   "Retrun a classname if possible, nil otherwise."

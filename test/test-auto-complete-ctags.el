@@ -578,14 +578,20 @@ ctags."
              "varname"))))
 
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
-  (let ((node1 '("method" "cmd" "method" "SomeClass" "()"))
-        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)")))
+  (let ((node1 '("method" "cmd" "method" "SomeClass" "()" nil "int"))
+        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)" nil "void")))
     (should
      (string= "method()"
               (ac-ctags-java-make-method-candidate node1)))
     (should
+     (string= ":int"
+              (get-text-property 0 'view (ac-ctags-java-make-method-candidate node1))))
+    (should
      (string= "anotherMethod(int i, String s)"
-              (ac-ctags-java-make-method-candidate node2)))))
+              (ac-ctags-java-make-method-candidate node2)))
+    (should
+     (string= ":void"
+              (get-text-property 0 'view (ac-ctags-java-make-method-candidate node2))))))
 
 (ert-deftest test-ac-ctags-make-signature ()
   (should (string= "(int, int)"
