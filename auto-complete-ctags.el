@@ -54,6 +54,11 @@
   :type 'number
   :group 'auto-complete-ctags)
 
+(defcustom ac-ctags-candidate-default-width 50
+  "Default width of each candidate that has text property."
+  :type 'number
+  :group 'auto-complete-ctags)
+
 (defface ac-ctags-candidate-face
   '((t (:background "slate gray" :foreground "white")))
   "Face for ctags candidate")
@@ -578,19 +583,21 @@ whose name begins with PREFIX. If PREFIX is nil, return all
 methods in CLASSNAME. If CLASSNAME is nil, return nil."
   (cond
    ((null classname) nil)
-   ((null prefix)
+   ((or (null prefix) (not (stringp prefix)) (zerop (length prefix )))
     (ac-ctags-java-collect-methods-in-class classname))
    (t
-    (all-completions prefix (ac-ctags-java-collect-methods-in-class classname)))))
+    (all-completions prefix
+                     (ac-ctags-java-collect-methods-in-class classname)))))
 
 (defun ac-ctags-java-collect-methods-in-class (classname)
   "Return a list of method names which belong to CLASSNAME."
   (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
         with ret = nil
+        with case-fold-search = nil
         for kind = (ac-ctags-node-kind lst)
         for class = (ac-ctags-node-class lst)
-        when (and class
-                  kind
+        when (and (stringp class)
+                  (stringp kind)
                   (string= "method" kind)
                   (or (string-match (concat "^" classname "$") class)
                       ;; To include OuterClass.InnerClass notation
@@ -601,12 +608,28 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
 ;; method :returntype - class
 (defun ac-ctags-java-make-method-candidate (node)
   "Return presentation form of NODE."
-  (propertize (concat (ac-ctags-node-name node)
-                      (ac-ctags-node-signature node))
-              'view (concat (when
-                                (ac-ctags-node-returntype node)
-                              (concat ":" (ac-ctags-node-returntype node)))
-                            " - " (ac-ctags-node-class node))))
+  (let* ((ret (concat (ac-ctags-node-name node)
+                      (ac-ctags-node-signature node)))
+         (returntype (when (ac-ctags-node-returntype node)
+                       (concat ":" (ac-ctags-node-returntype node))))
+         (classname (ac-ctags-node-class node))
+         (viewprop (concat returntype " - " classname)))
+    (propertize ret
+                'view (concat ret
+                              (ac-ctags-get-spaces-to-insert ret viewprop)
+                              returntype
+                              " - " classname))))
+
+(defun ac-ctags-get-spaces-to-insert (string prop)
+  "Return spaces to insert between candidate name and view property."
+  (if (< ac-ctags-candidate-default-width
+         (+ (length string) (length prop)))
+      ;; 4 is just my choice
+      (make-string 4 ? )
+    (make-string (- ac-ctags-candidate-default-width
+                    (length string)
+                    (length prop))
+               ? )))
 
 (defun ac-ctags-java-determine-class-name ()
   "Retrun a classname if possible, nil otherwise."

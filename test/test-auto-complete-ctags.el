@@ -536,17 +536,36 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int i, String str)")
-       (ac-ctags-java-method-candidates-1 "SampleClass" nil)))
+       '("SampleClass()" "SampleClass(int arg1, String arg2)" "helloAnotherWorld()"
+         "helloWorld()" "methodThatHasArgument(int i, String str)"
+         "methodThatSpansMultipleLines()" "methodWithGenerics()")
+       (mapcar #'substring-no-properties
+               (ac-ctags-java-method-candidates-1 "SampleClass" nil))))
      (should
       (equal
        '("helloAnotherWorld()")
-       (ac-ctags-java-method-candidates-1 "SampleClass" "helloA")))
+       (mapcar #'substring-no-properties
+               (ac-ctags-java-method-candidates-1 "SampleClass" "helloA"))))
      (should
       (null
        (ac-ctags-java-method-candidates-1 "SampleClass" "none")))
      (should
-      (null (ac-ctags-java-method-candidates-1 nil nil))))))
+      (null (ac-ctags-java-method-candidates-1 nil nil)))
+     )))
+
+(ert-deftest test-ac-ctags-java-method-candidates-1-check-text-property ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (let* ((cand (car (ac-ctags-java-method-candidates-1 "SampleClass" "helloA")))
+            (prop (get-text-property 0 'view cand)))
+       (should prop)
+       ;; method name
+       (should (string= "helloAnotherWorld()" (substring-no-properties cand)))
+       ;; and view property
+       (should (string= "helloAnotherWorld()             :int - SampleClass"
+                        prop))
+       ))))
 
 (ert-deftest test-ac-ctags-java-collect-methods-in-class ()
   (test-ac-ctags-fixture
@@ -554,8 +573,11 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("helloAnotherWorld()" "helloWorld()" "methodThatHasArgument(int i, String str)")
-       (ac-ctags-java-collect-methods-in-class "SampleClass")))
+       '("SampleClass()" "SampleClass(int arg1, String arg2)" "helloAnotherWorld()"
+         "helloWorld()" "methodThatHasArgument(int i, String str)"
+         "methodThatSpansMultipleLines()" "methodWithGenerics()")
+       (mapcar #'substring-no-properties
+               (ac-ctags-java-collect-methods-in-class "SampleClass"))))
      (should
       (null (ac-ctags-java-collect-methods-in-class "NoneExist")))
      )))
@@ -585,21 +607,22 @@ ctags."
      (string= "method()"
               (ac-ctags-java-make-method-candidate node1)))
     (should
-     (string= ":int - SomeClass"
+     (string= "method()                          :int - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node1))))
     (should
      (string= "anotherMethod(int i, String s)"
               (ac-ctags-java-make-method-candidate node2)))
     (should
-     (string= ":void - SomeClass"
+     (string= "anotherMethod(int i, String s)   :void - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node2))))
     (should
      (string= "SampleClass()"
               (ac-ctags-java-make-method-candidate node-ctor)))
     (should
-     (string= " - SampleClass"
+     (string= "SampleClass()                        - SampleClass"
               (get-text-property 0 'view
-                                 (ac-ctags-java-make-method-candidate node-ctor))))))
+                                 (ac-ctags-java-make-method-candidate node-ctor))))
+    ))
 
 (ert-deftest test-ac-ctags-make-signature ()
   (should (string= "(int, int)"
