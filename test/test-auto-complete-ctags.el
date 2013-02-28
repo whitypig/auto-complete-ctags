@@ -9,11 +9,13 @@
 (defconst test-ac-ctags-java-tagsfile "java.tags")
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
 (defconst test-ac-ctags-c-tagsfile "c.ctags")
+(defconst test-ac-ctags-java-tagsfile-for-update "java.updated.ctags")
 
-(defconst test-ac-ctags-node-length 5)
+(defconst test-ac-ctags-node-length 7)
 
 (defun test-ac-ctags-fixture (body)
-  (let ((ac-ctags-tags-db nil)
+  (let ((ac-ctags-current-major-mode nil)
+        (ac-ctags-tags-db nil)
         (ac-ctags-current-tags-list nil)
         (ac-ctags-tags-list-set nil)
         (ac-ctags-completion-table nil)
@@ -669,3 +671,45 @@ ctags."
    (equal '(ac-source-ctags-java-method)
           (ac-ctags-get-ac-sources-by-mode 'java-mode))))
 
+(ert-deftest test-ac-ctags-candidates-1 ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (let ((major-mode 'java-mode))
+       (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+       (ac-ctags-update-current-completion-table 'java-mode)
+       (should (ac-ctags-candidates-1 "methodWith" ac-ctags-current-completion-table))
+       (should-not (ac-ctags-candidates-1 "nonexist" ac-ctags-current-completion-table))))))
+
+(ert-deftest test-ac-ctags-check-tags-file-updated ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (let ((major-mode 'java-mode))
+       ;; first create tags file
+       (shell-command
+        (concat "ctags -f"
+                test-ac-ctags-java-tagsfile-for-update
+                " --jcode=utf8 --fields=+aiKlmnsSztT"
+                " SampleClassOld.java"))
+       (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile-for-update 'new)
+       (ac-ctags-update-current-completion-table 'java-mode)
+       (should-not
+        (ac-ctags-candidates-1 "methodWith" ac-ctags-current-completion-table))
+       ;; update tags file
+       (shell-command
+        (concat "ctags -f"
+                test-ac-ctags-java-tagsfile-for-update
+                " --jcode=utf8 --fields=+aiKlmnsSztT"
+                " SampleClassNew.java"))
+       (should
+        (ac-ctags-candidates-1 "methodWith" ac-ctags-current-completion-table))
+       ))))
+
+
+(ert-deftest test-ac-ctags-tagsdb-needs-update-p ()
+  ;; db created time is newer than tags file modification time
+  (should-not
+   (ac-ctags-tagsdb-needs-update-p (current-time)))
+  ;; older than tags file modification time
+  (should
+   (ac-ctags-tagsdb-needs-update-p '(0 0)))
+  )
