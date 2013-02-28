@@ -263,6 +263,15 @@ TAGS is expected to be an absolute path name."
       (progress-reporter-done reporter)))
   tags-db)
 
+(defun ac-ctags-tagsdb-needs-update-p (db-created-time)
+  "Return t if DB-CRETED-TIME is older than any one of file
+modification times of a tags file in `ac-ctags-current-tags-list'."
+  (some (lambda (time)
+          (time-less-p db-created-time time))
+        (mapcar (lambda (tags)
+                  (nth 5 (file-attributes tags)))
+                ac-ctags-current-tags-list)))
+
 (defun ac-ctags-make-signature (tag-signature)
   "Return string of signature created using TAG-SIGNATURE."
   (cond
@@ -528,20 +537,23 @@ FROM-MODE and TO-MODE."
 
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
-  (let ((candidates nil))
-    ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
-    (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
-    (ac-ctags-update-current-completion-table major-mode)
-    (when (stringp ac-prefix)
-      (setq candidates
-            (sort (all-completions ac-prefix ac-ctags-current-completion-table)
-                  #'string<))
-      (let ((len (length candidates)))
-        (if (and candidates
-                 (numberp ac-ctags-candidate-limit)
-                 (> len ac-ctags-candidate-limit))
-            (nbutlast candidates (- len ac-ctags-candidate-limit))
-          candidates)))))
+  ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
+  (ac-ctags-update-tagsdb (nbutlast (current-time)))
+  (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
+  (ac-ctags-candidates-1 ac-prefix ac-ctags-current-completion-table))
+
+(defun ac-ctags-candidates-1 (prefix completion-table)
+  (ac-ctags-update-current-completion-table major-mode)
+  (when (stringp prefix)
+    (setq candidates
+          (sort (all-completions prefix completion-table)
+                #'string<))
+    (let ((len (length candidates)))
+      (if (and candidates
+               (numberp ac-ctags-candidate-limit)
+               (> len ac-ctags-candidate-limit))
+          (nbutlast candidates (- len ac-ctags-candidate-limit))
+        candidates))))
 
 (defun ac-ctags-skip-to-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
