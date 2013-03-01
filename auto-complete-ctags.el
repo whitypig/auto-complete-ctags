@@ -239,7 +239,8 @@ TAGS is expected to be an absolute path name."
       (while (re-search-forward
               "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
               nil t)
-        (let (line name cmd kind (lang "Others") signature class enum returntype)
+        (let (line name cmd kind (lang "Others") signature
+                   class interface enum returntype)
           (setq line (match-string-no-properties 0)
                 name (match-string-no-properties 1)
                 cmd (ac-ctags-trim-whitespace
@@ -254,14 +255,16 @@ TAGS is expected to be an absolute path name."
             (setq kind (match-string-no-properties 1 line)))
           (when (string-match "class:\\([^\t\n]+\\)" line)
             (setq class (match-string-no-properties 1 line)))
+          (when (string-match "interface:\\([^\t\n]+\\)" line)
+            (setq interface (match-string-no-properties 1 line)))
           (when (string-match "enum:\\([^\t\n]+\\)" line)
             (setq enum (match-string-no-properties 1 line)))
           (when (string-match "returntype:\\([^\t\n]+\\)" line)
             (setq returntype (match-string-no-properties 1 line)))
           (if (assoc lang tags-db)
-              (push `(,name ,cmd ,kind ,class ,signature ,enum ,returntype)
+              (push `(,name ,cmd ,kind ,class ,interface ,signature ,enum ,returntype)
                     (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,cmd ,kind ,class ,signature ,enum ,returntype))
+            (push `(,lang (,name ,cmd ,kind ,class ,interface ,signature ,enum ,returntype))
                   tags-db)))
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
@@ -276,9 +279,10 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
                   (nth 5 (file-attributes tags)))
                 ac-ctags-current-tags-list)))
 
-(defun ac-ctags-update-tagsdb (db-created-time)
+(defun ac-ctags-update-tagsdb (db-created-time &optional force)
   "Update tagsdb, completion table, and so on if need be."
-  (when (or (null db-created-time)
+  (when (or force
+            (null db-created-time)
             (ac-ctags-tagsdb-needs-update-p db-created-time))
     (let (db
           tbl
@@ -328,14 +332,17 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
 (defun ac-ctags-node-class (node)
   (nth 3 node))
 
-(defun ac-ctags-node-signature (node)
+(defun ac-ctags-node-interface (node)
   (nth 4 node))
 
-(defun ac-ctags-node-enum (node)
+(defun ac-ctags-node-signature (node)
   (nth 5 node))
 
-(defun ac-ctags-node-returntype (node)
+(defun ac-ctags-node-enum (node)
   (nth 6 node))
+
+(defun ac-ctags-node-returntype (node)
+  (nth 7 node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
@@ -628,7 +635,7 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
         with ret = nil
         with case-fold-search = nil
         for kind = (ac-ctags-node-kind lst)
-        for class = (ac-ctags-node-class lst)
+        for class = (or (ac-ctags-node-class lst) (ac-ctags-node-interface lst))
         when (and (stringp class)
                   (stringp kind)
                   (string= "method" kind)
@@ -645,13 +652,13 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                       (ac-ctags-node-signature node)))
          (returntype (when (ac-ctags-node-returntype node)
                        (concat ":" (ac-ctags-node-returntype node))))
-         (classname (ac-ctags-node-class node))
+         (classname (or (ac-ctags-node-class node) (ac-ctags-node-interface node)))
          (viewprop (concat returntype " - " classname)))
     (propertize ret
                 'view (concat ret
                               (ac-ctags-get-spaces-to-insert ret viewprop)
                               returntype
-                              " - " classname))))
+                              " - " classname)))))
 
 (defun ac-ctags-get-spaces-to-insert (string prop)
   "Return spaces to insert between candidate name and view property."

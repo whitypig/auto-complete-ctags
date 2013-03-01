@@ -10,6 +10,7 @@
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
 (defconst test-ac-ctags-c-tagsfile "c.ctags")
 (defconst test-ac-ctags-java-tagsfile-for-update "java.updated.ctags")
+(defconst test-ac-ctags-java-inf-tagsfile "inf.ctags")
 
 (defconst test-ac-ctags-node-length 7)
 
@@ -584,6 +585,16 @@ ctags."
      (should
       (null (ac-ctags-java-collect-methods-in-class "NoneExist")))
      )))
+
+(ert-deftest test-ac-ctags-java-collect-methods-in-interface ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-inf-tagsfile 'new)
+     (should
+      (equal
+       '("method1(int i)" "method2()")
+       (mapcar #'substring-no-properties
+               (ac-ctags-java-collect-methods-in-class "SomeInterface")))))))
 
 (ert-deftest test-ac-ctags-java-extract-class-name ()
   (should
