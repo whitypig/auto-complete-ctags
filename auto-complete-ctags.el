@@ -94,6 +94,9 @@ example.
 (defvar ac-ctags-current-completion-table nil
   "A vector used for completion for `ac-ctags-current-tags-list'.")
 
+(defvar ac-ctags-tags-db-created-time nil
+  "Creation time of `ac-ctags-tags-db'")
+
 (defvar ac-ctags-prefix-funtion-table
   '((c++-mode . ac-ctags-c++-prefix))
   "A table of prefix functions for a specific major mode.")
@@ -168,7 +171,8 @@ need be."
       (setq ac-ctags-current-tags-list new-lst
             ac-ctags-tags-db db
             ac-ctags-completion-table tbl
-            ac-ctags-current-completion-table vec))))
+            ac-ctags-current-completion-table vec
+            ac-ctags-tags-db-created-time (nbutlast (current-time))))))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
@@ -271,6 +275,23 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
         (mapcar (lambda (tags)
                   (nth 5 (file-attributes tags)))
                 ac-ctags-current-tags-list)))
+
+(defun ac-ctags-update-tagsdb (db-created-time)
+  "Update tagsdb, completion table, and so on if need be."
+  (when (or (null db-created-time)
+            (ac-ctags-tagsdb-needs-update-p db-created-time))
+    (let (db
+          tbl
+          (vec (make-vector ac-ctags-vector-default-size 0)))
+      ;; If tags list has changed, we update the information
+      (setq db (ac-ctags-build-tagsdb ac-ctags-current-tags-list db))
+      (setq tbl (ac-ctags-build-completion-table db))
+      (setq vec (ac-ctags-build-current-completion-table vec tbl))
+      ;; Update the state
+      (setq ac-ctags-tags-db db
+            ac-ctags-completion-table tbl
+            ac-ctags-current-completion-table vec
+            ac-ctags-tags-db-created-time (nbutlast (current-time))))))
 
 (defun ac-ctags-make-signature (tag-signature)
   "Return string of signature created using TAG-SIGNATURE."
@@ -538,15 +559,15 @@ FROM-MODE and TO-MODE."
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
-  (ac-ctags-update-tagsdb (nbutlast (current-time)))
   (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
-  (ac-ctags-candidates-1 ac-prefix ac-ctags-current-completion-table))
+  (ac-ctags-candidates-1 ac-prefix))
 
-(defun ac-ctags-candidates-1 (prefix completion-table)
+(defun ac-ctags-candidates-1 (prefix)
+  (ac-ctags-update-tagsdb ac-ctags-tags-db-created-time)
   (ac-ctags-update-current-completion-table major-mode)
   (when (stringp prefix)
     (setq candidates
-          (sort (all-completions prefix completion-table)
+          (sort (all-completions prefix ac-ctags-current-completion-table)
                 #'string<))
     (let ((len (length candidates)))
       (if (and candidates

@@ -19,7 +19,8 @@
         (ac-ctags-current-tags-list nil)
         (ac-ctags-tags-list-set nil)
         (ac-ctags-completion-table nil)
-        (ac-ctags-current-completion-table nil))
+        (ac-ctags-current-completion-table nil)
+        (ac-ctags-tags-db-created-time nil))
     (funcall body)))
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
@@ -684,24 +685,24 @@ ctags."
   (test-ac-ctags-fixture
    (lambda ()
      (let ((major-mode 'java-mode))
-       ;; first create tags file
+       ;; first, create tags file
        (shell-command
         (concat "ctags -f"
                 test-ac-ctags-java-tagsfile-for-update
                 " --jcode=utf8 --fields=+aiKlmnsSztT"
                 " SampleClassOld.java"))
        (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile-for-update 'new)
-       (ac-ctags-update-current-completion-table 'java-mode)
        (should-not
-        (ac-ctags-candidates-1 "methodWith" ac-ctags-current-completion-table))
-       ;; update tags file
+        (ac-ctags-candidates-1 "methodWith"))
+       ;; next, update tags file
+       (sit-for 1)
        (shell-command
         (concat "ctags -f"
                 test-ac-ctags-java-tagsfile-for-update
                 " --jcode=utf8 --fields=+aiKlmnsSztT"
                 " SampleClassNew.java"))
        (should
-        (ac-ctags-candidates-1 "methodWith" ac-ctags-current-completion-table))
+        (ac-ctags-candidates-1 "methodWith"))
        ))))
 
 
