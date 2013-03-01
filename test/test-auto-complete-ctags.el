@@ -493,7 +493,7 @@ ctags."
 
 ;; node => (name cmd kind signature)
 (ert-deftest test-ac-ctags-node-access ()
-  (let ((node '("name" "cmd" "kind" "class" "signature")))
+  (let ((node '("name" "cmd" "kind" "class" "interface" "signature")))
     (should (string= "name"
                      (ac-ctags-node-name node)))
     (should (string= "cmd"
@@ -505,9 +505,9 @@ ctags."
     (should (string= "signature"
                      (ac-ctags-node-signature node)))
     (should (null
-             (ac-ctags-node-kind '("name" "cmd" nil "class" "signature"))))
+             (ac-ctags-node-kind '("name" "cmd" nil "class" "interface" "signature"))))
     (should (null
-             (ac-ctags-node-signature '("name" "cmd" nil "class" nil))))))
+             (ac-ctags-node-signature '("name" "cmd" nil "class" "interface" nil))))))
 
 (ert-deftest test-ac-ctags-get-signature:java ()
   (test-ac-ctags-fixture
