@@ -689,7 +689,7 @@ which begin with PREFIX."
                                 " :" type)))))
 
 (defun ac-ctags-java-parse-field-node (node)
-  "Return a type name by parsing NODE list if possible."
+  "Return a type name of this field by parsing NODE list if possible."
   (let* ((name (ac-ctags-node-name node))
          (cmd (ac-ctags-node-command node))
          (splitted (split-string cmd "[ \t;]"))
@@ -709,6 +709,7 @@ which begin with PREFIX."
                 (concat x " " y))
               (subseq splitted (1+ start) end)))))
 
+;; ac-source-ctags-java-field
 (ac-define-source ctags-java-field
   '((candidates . ac-ctags-java-field-candidates)
     (cache)
