@@ -670,7 +670,10 @@ ctags."
   (let ((node1 '("_strField" "/^  private String _strField;$/;\""
                  "field" "SomeClass" nil nil nil))
         (node2 '("_strMap" "/^  private Map<String, String> _strMap;$/;\""
-                 "field" "SampleClass" nil nil nil)))
+                 "field" "SampleClass" nil nil nil))
+        (no-type-node
+         '("_strMap" "/^  private _strMap;$/;\""
+           "field" "SampleClass" nil nil nil)))
     (should
      (string= "_strField"
               (ac-ctags-java-make-field-candidate node1)))
@@ -683,6 +686,11 @@ ctags."
     (should
      (string= "_strMap                       :Map<String, String>"
               (get-text-property 0 'view (ac-ctags-java-make-field-candidate node2))))
+        (should
+     (string= "_strMap"
+              (ac-ctags-java-make-field-candidate no-type-node)))
+    (should
+     (null (get-text-property 0 'view (ac-ctags-java-make-field-candidate no-type-node))))
     ))
 
 (ert-deftest test-ac-ctags-java-parse-field-node ()
@@ -694,7 +702,16 @@ ctags."
   (should
    (string= "Map<String, String>"
             (ac-ctags-java-parse-field-node
-             '("_strMap" "/^  private Map<String, String> _strMap;$/;\""
+             '("_strMap" "/^  protected Map<String, String> _strMap;$/;\""
+               "field" "SampleClass" nil nil nil))))
+  (should
+   (string= "int"
+            (ac-ctags-java-parse-field-node
+             '("CONSTANT" "/^  public static final int CONSTANT;$/;\""
+               "field" "SampleClass" nil nil nil))))
+  (should
+   (null (ac-ctags-java-parse-field-node
+          '("CONSTANT" "/^  CONSTANT;$/;\""
                "field" "SampleClass" nil nil nil)))))
 
 (ert-deftest test-ac-ctags-make-signature ()

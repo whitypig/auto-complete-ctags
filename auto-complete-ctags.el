@@ -690,7 +690,8 @@ which begin with PREFIX."
 
 (defun ac-ctags-java-parse-field-node (node)
   "Return a type name of this field by parsing NODE list if possible."
-  (let* ((name (ac-ctags-node-name node))
+  (let* ((case-fold-search nil)
+         (name (ac-ctags-node-name node))
          (cmd (ac-ctags-node-command node))
          (splitted (split-string cmd "[ \t;]"))
          (end (position name splitted :test #'string=))
@@ -704,7 +705,7 @@ which begin with PREFIX."
                                                      "volatile")
                                              str))
                              splitted :from-end t)))
-    (when (and start end)
+    (when (and start end (< (1+ start) end))
       (reduce (lambda (x y)
                 (concat x " " y))
               (subseq splitted (1+ start) end)))))
