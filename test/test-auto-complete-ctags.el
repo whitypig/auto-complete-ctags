@@ -597,9 +597,9 @@ ctags."
                (ac-ctags-java-collect-methods-in-class "SomeInterface")))))))
 
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
-  (let ((node1 '("method" "cmd" "method" "SomeClass" "()" nil "int"))
-        (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)" nil "void"))
-        (node-ctor '("SampleClass" "cmd" "method" "SampleClass" "()" nil nil)))
+  (let ((node1 '("method" "cmd" "method" "SomeClass" nil "()" nil "int"))
+        (node2 '("anotherMethod" "cmd" "method" "SomeClass" nil "(int i, String s)" nil "void"))
+        (node-ctor '("SampleClass" "cmd" "method" "SampleClass" nil "()" nil nil)))
     (should
      (string= "method()"
               (ac-ctags-java-make-method-candidate node1)))
@@ -607,11 +607,17 @@ ctags."
      (string= "method()                          :int - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node1))))
     (should
+     (string= "()"
+      (get-text-property 0 'signature (ac-ctags-java-make-method-candidate node1))))
+    (should
      (string= "anotherMethod(int i, String s)"
               (ac-ctags-java-make-method-candidate node2)))
     (should
      (string= "anotherMethod(int i, String s)   :void - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node2))))
+    (should
+     (string= "(int i, String s)"
+      (get-text-property 0 'signature (ac-ctags-java-make-method-candidate node2))))
     (should
      (string= "SampleClass()"
               (ac-ctags-java-make-method-candidate node-ctor)))
@@ -619,7 +625,48 @@ ctags."
      (string= "SampleClass()                        - SampleClass"
               (get-text-property 0 'view
                                  (ac-ctags-java-make-method-candidate node-ctor))))
+    (should
+     (string= "()"
+      (get-text-property 0 'signature (ac-ctags-java-make-method-candidate node-ctor))))
     ))
+
+(ert-deftest test-ac-ctags-make-yasnippet-template-from-signature ()
+  (should
+   (string=
+    "(${1:int i}, ${2:String s})$0"
+    (ac-ctags-make-yasnippet-template-from-signature "(int i, String s)")))
+  (should
+   (string= "()$0"
+            (ac-ctags-make-yasnippet-template-from-signature "()")))
+  (should
+   (string= "(${1:int i})$0"
+            (ac-ctags-make-yasnippet-template-from-signature "(int i)")))
+  (should
+   (string=
+    "(${1:Map<String, String> map})$0"
+    (ac-ctags-make-yasnippet-template-from-signature "(Map<String, String> map)")))
+  (should
+   (string=
+    "(${1:Map<String, String> map}, ${2:int j})$0"
+    (ac-ctags-make-yasnippet-template-from-signature "(Map<String, String> map, int j)")))
+  )
+
+
+(ert-deftest test-ac-ctags-split-signature-string ()
+  (should
+   (equal '("int i" "int j")
+          (ac-ctags-split-signature-string "(int i, int j)" "[,]")))
+  (should
+   (equal '("Map<String, String> map" "int j")
+          (ac-ctags-split-signature-string "(Map<String, String> map, int j)" "[,]")))
+  (should
+   (equal '("int i")
+          (ac-ctags-split-signature-string "(int i)" ",")))
+  (should
+   (null (ac-ctags-split-signature-string "()" ",")))
+  (should
+   (equal '("Map<Map<int, int>, Map<int, int>> map" "int i")
+          (ac-ctags-split-signature-string "(Map<Map<int, int>, Map<int, int>> map, int i)" ","))))
 
 (ert-deftest test-ac-ctags-java-extract-class-name ()
   (should

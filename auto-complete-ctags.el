@@ -54,7 +54,7 @@
   :type 'number
   :group 'auto-complete-ctags)
 
-(defcustom ac-ctags-candidate-default-width 50
+(defcustom ac-ctags-candidate-default-width 40
   "Default width of each candidate that has text property."
   :type 'number
   :group 'auto-complete-ctags)
@@ -608,7 +608,8 @@ FROM-MODE and TO-MODE."
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
-    (prefix . "\\.\\(.*\\)")))
+    (prefix . "\\.\\(.*\\)")
+    (action . ac-ctags-java-method-action)))
 
 ;; ac-prefix is '\\.\\(.*\\)'
 (defun ac-ctags-java-method-candidates ()
@@ -644,6 +645,57 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                       (string-match (concat "\\." classname "$") class)))
         do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
+
+(defun ac-ctags-java-method-action ()
+  "Expand yasnippet template for this method signature."
+  (when (fboundp 'yas-expand-snippet)
+    (let* ((cand (cdr ac-last-completion))
+           (signature (get-text-property 0 'signature cand))
+           (template (and signature
+                          (ac-ctags-make-yasnippet-template-from-signature signature))))
+      (when (stringp template)
+        (delete-char (- (length signature)))
+        (yas-expand-snippet template)))))
+
+(defun ac-ctags-make-yasnippet-template-from-signature (signature)
+  (if (string= signature "()")
+      "()$0"
+    (concat "("
+            (reduce (lambda (x y)
+                      (concat x ", " y))
+                    (loop for e in (ac-ctags-split-signature-string signature ",")
+                          for i from 1
+                          collect (format "${%d:%s}" i e)))
+            ")$0")))
+
+(defun ac-ctags-split-signature-string (signature sep-regexp)
+  "Split SIGNATURE string by SEP-REGEXP, which is usually \",\".
+SIGNATURE must be like \"(int i, int j)\"."
+  (loop with case-fold-search = nil
+        with ret = nil
+        with n-angle-brackets = 0
+        with acc = nil
+        ;; remove first and last parens
+        for ch in (cdr (nbutlast (split-string signature "" t)))
+        if (and (string-match sep-regexp ch)
+                (zerop n-angle-brackets))
+        do (progn (push (reduce #'concat (nreverse acc)) ret)
+                  (setq acc nil
+                        n-angle-bracket 0))
+        else
+        do (cond
+            ((string= ch "<")
+             (incf n-angle-brackets)
+             (push ch acc))
+            ((string= ch ">")
+             (decf n-angle-brackets)
+             (push ch acc))
+            (t
+             (push ch acc)))
+        finally (return
+                 (mapcar #'ac-ctags-trim-whitespace
+                         (remove ""
+                                 (nreverse (push (reduce #'concat (nreverse acc)) ret)))))))
 
 (defun ac-ctags-java-field-candidates ()
   "Candidate function for completing field names."
@@ -732,7 +784,8 @@ which begin with PREFIX."
                 'view (concat ret
                               (ac-ctags-get-spaces-to-insert ret viewprop)
                               returntype
-                              " - " classname)))))
+                              " - " classname)
+                'signature (ac-ctags-node-signature node))))
 
 (defun ac-ctags-get-spaces-to-insert (string prop)
   "Return spaces to insert between candidate name and view property."
