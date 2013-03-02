@@ -623,7 +623,7 @@ whose name begins with PREFIX. If PREFIX is nil, return all
 methods in CLASSNAME. If CLASSNAME is nil, return nil."
   (cond
    ((null classname) nil)
-   ((or (null prefix) (not (stringp prefix)) (zerop (length prefix )))
+   ((or (null prefix) (not (stringp prefix)) (zerop (length prefix)))
     (ac-ctags-java-collect-methods-in-class classname))
    (t
     (all-completions prefix
@@ -644,6 +644,78 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                       (string-match (concat "\\." classname "$") class)))
         do (push (ac-ctags-java-make-method-candidate lst) ret)
         finally (return (sort ret #'string<))))
+
+(defun ac-ctags-java-field-candidates ()
+  "Candidate function for completing field names."
+  (ac-ctags-java-field-candidates-1
+   (ac-ctags-java-determine-class-name) ac-prefix))
+
+(defun ac-ctags-java-field-candidates-1 (classname prefix)
+  "return a list of field names which belong to CLASSNAME and
+which begin with PREFIX."
+  (cond
+   ((null classname) nil)
+   ((or (null prefix) (not (stringp prefix)) (zerop (length prefix)))
+    (ac-ctags-java-collect-fields-in-class classname))
+   (t
+    (all-completions prefix
+                     (ac-ctags-java-collect-fields-in-class classname)))))
+
+(defun ac-ctags-java-collect-fields-in-class (classname)
+  "Return a list of fields in class/interface CLASSNAME."
+  (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+        with ret = nil
+        with case-fold-search = nil
+        for kind = (ac-ctags-node-kind lst)
+        for class = (or (ac-ctags-node-class lst) (ac-ctags-node-interface lst))
+        when (and (stringp class)
+                  (stringp kind)
+                  (string= "field" kind)
+                  (or (string-match (concat "^" classname "$") class)
+                      ;; To include OuterClass.InnerClass notation
+                      (string-match (concat "\\." classname "$") class)))
+        do (push (ac-ctags-java-make-field-candidate lst) ret)
+        finally (return (sort ret #'string<))))
+
+(defun ac-ctags-java-make-field-candidate (node)
+  "Return a propertized filed name."
+  (let ((ret (ac-ctags-node-name node))
+        (type (ac-ctags-java-parse-field-node node)))
+    (if (not (stringp type))
+        ret
+      (propertize ret
+                  'view (concat ret
+                                (ac-ctags-get-spaces-to-insert ret (concat " :" type))
+                                " :" type)))))
+
+(defun ac-ctags-java-parse-field-node (node)
+  "Return a type name by parsing NODE list if possible."
+  (let* ((name (ac-ctags-node-name node))
+         (cmd (ac-ctags-node-command node))
+         (splitted (split-string cmd "[ \t;]"))
+         (end (position name splitted :test #'string=))
+         (start (position-if (lambda (str)
+                               (string-match (concat "private\\|"
+                                                     "protected\\|"
+                                                     "public\\|"
+                                                     "final\\|"
+                                                     "transient\\|"
+                                                     "static\\|"
+                                                     "volatile")
+                                             str))
+                             splitted :from-end t)))
+    (when (and start end)
+      (reduce (lambda (x y)
+                (concat x " " y))
+              (subseq splitted (1+ start) end)))))
+
+(ac-define-source ctags-java-field
+  '((candidates . ac-ctags-java-field-candidates)
+    (cache)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 0)
+    (prefix . "\\.\\(.*\\)")))
 
 ;; method :returntype - class
 (defun ac-ctags-java-make-method-candidate (node)
