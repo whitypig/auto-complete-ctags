@@ -596,23 +596,6 @@ ctags."
        (mapcar #'substring-no-properties
                (ac-ctags-java-collect-methods-in-class "SomeInterface")))))))
 
-(ert-deftest test-ac-ctags-java-extract-class-name ()
-  (should
-   (string= "ClassName"
-            (ac-ctags-java-extract-class-name
-             "ClassName varname;"
-             "varname")))
-  (should
-   (string= "ClassName"
-            (ac-ctags-java-extract-class-name
-             "ClassName<Some<Another>> varname;"
-             "varname")))
-  (should
-   (string= "ClassName"
-            (ac-ctags-java-extract-class-name
-             "public void someMethod(ClassName varname) {"
-             "varname"))))
-
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
   (let ((node1 '("method" "cmd" "method" "SomeClass" "()" nil "int"))
         (node2 '("anotherMethod" "cmd" "method" "SomeClass" "(int i, String s)" nil "void"))
@@ -637,6 +620,82 @@ ctags."
               (get-text-property 0 'view
                                  (ac-ctags-java-make-method-candidate node-ctor))))
     ))
+
+(ert-deftest test-ac-ctags-java-extract-class-name ()
+  (should
+   (string= "ClassName"
+            (ac-ctags-java-extract-class-name
+             "ClassName varname;"
+             "varname")))
+  (should
+   (string= "ClassName"
+            (ac-ctags-java-extract-class-name
+             "ClassName<Some<Another>> varname;"
+             "varname")))
+  (should
+   (string= "ClassName"
+            (ac-ctags-java-extract-class-name
+             "public void someMethod(ClassName varname) {"
+             "varname"))))
+
+(ert-deftest tet-ac-ctags-java-collect-fields-in-class ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (should
+      (equal
+       '("CONSTANT" "_intField" "_strField")
+       (ac-ctags-java-collect-fields-in-class "SampleClass"))))))
+
+(ert-deftest test-ac-ctags-java-field-candidates-1 ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (should
+      (equal
+       '("CONSTANT" "_intField" "_strField" "_strMap")
+       (ac-ctags-java-field-candidates-1 "SampleClass" nil)))
+     (should
+      (equal
+       '("CONSTANT")
+       (ac-ctags-java-field-candidates-1 "SampleClass" "CON")))
+     (should
+      (null
+       (ac-ctags-java-field-candidates-1 "SampleClass" "none")))
+     (should
+      (null (ac-ctags-java-field-candidates-1 nil nil)))
+     )))
+
+(ert-deftest test-ac-ctags-java-make-field-candidate ()
+  (let ((node1 '("_strField" "/^  private String _strField;$/;\""
+                 "field" "SomeClass" nil nil nil))
+        (node2 '("_strMap" "/^  private Map<String, String> _strMap;$/;\""
+                 "field" "SampleClass" nil nil nil)))
+    (should
+     (string= "_strField"
+              (ac-ctags-java-make-field-candidate node1)))
+    (should
+     (string= "_strField                                  :String"
+              (get-text-property 0 'view (ac-ctags-java-make-field-candidate node1))))
+    (should
+     (string= "_strMap"
+              (ac-ctags-java-make-field-candidate node2)))
+    (should
+     (string= "_strMap                       :Map<String, String>"
+              (get-text-property 0 'view (ac-ctags-java-make-field-candidate node2))))
+    ))
+
+(ert-deftest test-ac-ctags-java-parse-field-node ()
+  (should
+   (string= "String"
+            (ac-ctags-java-parse-field-node
+             '("_strField" "/^  private String _strField;$/;\""
+               "field" "SomeClass" nil nil nil))))
+  (should
+   (string= "Map<String, String>"
+            (ac-ctags-java-parse-field-node
+             '("_strMap" "/^  private Map<String, String> _strMap;$/;\""
+               "field" "SampleClass" nil nil nil)))))
 
 (ert-deftest test-ac-ctags-make-signature ()
   (should (string= "(int, int)"
