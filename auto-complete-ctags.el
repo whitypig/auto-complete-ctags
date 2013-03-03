@@ -741,7 +741,9 @@ which begin with PREFIX."
                                 " :" type)))))
 
 (defun ac-ctags-java-parse-field-node (node)
-  "Return a type name of this field by parsing NODE list if possible."
+  "Return a type name of this field by parsing NODE list if possible.
+If field declaration spans to multiple lines, this function
+cannot parse that field, and return nil."
   (let* ((case-fold-search nil)
          (name (ac-ctags-node-name node))
          (cmd (ac-ctags-node-command node))
