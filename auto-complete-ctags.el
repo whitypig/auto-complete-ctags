@@ -773,7 +773,8 @@ which begin with PREFIX."
 
 ;; method :returntype - class
 (defun ac-ctags-java-make-method-candidate (node)
-  "Return presentation form of NODE."
+  "Return presentation form of NODE.
+Signature property is used to construct yasnippet template."
   (let* ((ret (concat (ac-ctags-node-name node)
                       (ac-ctags-node-signature node)))
          (returntype (when (ac-ctags-node-returntype node)
@@ -930,7 +931,8 @@ which begin with PREFIX."
         for enum = (ac-ctags-node-enum lst)
         when (and enum
                   kind
-                  (string= enum enum-typename)
+                  (or (string= enum enum-typename)
+                      (string-match (concat "\\." enum-typename "$") enum))
                   (string= "enum constant" kind))
         do (push (car lst) ret)
         finally (return (sort ret #'string<))))
