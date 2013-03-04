@@ -899,6 +899,42 @@ Signature property is used to construct yasnippet template."
          (not (string-match-p exclude-regexp line))
          (not (string-match-p "^[[:space:]]*//" line)))))
 
+(defun ac-ctags-java-parse-before-dot-part (string)
+  "Return outermost identifier name in STRING.
+STRING should be the string before dot, exclusive.
+
+Example: if STRING is method1(), then return method1.
+If STRING is (varname), then return varname.
+If STRING is method1(method2()), return method1.
+If STRING is method1(method2(), return method2."
+  (loop named this-func
+        with stack = nil
+        with paren-count = 0
+        with identifier = nil
+        for ch in (nreverse (split-string string "" t))
+        if (string= ch ")")
+        do (incf paren-count)
+        else if (string= ch "(")
+        do (cond
+            ((zerop paren-count)
+             (return-from this-func (and identifier
+                                      (ac-ctags-trim-whitespace
+                                       (reduce #'concat identifier)))))
+            (t
+             (decf paren-count)
+             (when identifier
+               (push (ac-ctags-trim-whitespace (reduce #'concat identifier))
+                     stack))
+             (setq identifier nil)))
+        else
+        do (push ch identifier)
+        finally (return-from this-func
+                  (progn
+                    (when identifier
+                      (push (ac-ctags-trim-whitespace (reduce #'concat identifier))
+                            stack))
+                    (car stack)))))
+
 (ac-define-source ctags-java-enum
   '((candidates . ac-ctags-java-enum-candidates)
     (cache)
