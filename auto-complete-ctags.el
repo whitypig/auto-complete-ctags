@@ -635,7 +635,7 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
 
 (defun ac-ctags-java-collect-methods-in-class (classname)
   "Return a list of method names which belong to CLASSNAME."
-  (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+  (loop for lst in (ac-ctags-get-lang-db "Java")
         with ret = nil
         with case-fold-search = nil
         for kind = (ac-ctags-node-kind lst)
@@ -718,7 +718,7 @@ which begin with PREFIX."
 
 (defun ac-ctags-java-collect-fields-in-class (classname)
   "Return a list of fields in class/interface CLASSNAME."
-  (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+  (loop for lst in (ac-ctags-get-lang-db "Java")
         with ret = nil
         with case-fold-search = nil
         for kind = (ac-ctags-node-kind lst)
@@ -844,7 +844,7 @@ Signature property is used to construct yasnippet template."
 
 (defun ac-ctags-java-get-method-return-type (method-name)
   (loop with case-fold-search = nil
-        for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+        for lst in (ac-ctags-get-lang-db "Java")
         for name = (ac-ctags-node-name lst)
         for kind = (ac-ctags-node-kind lst)
         for returntype = (ac-ctags-node-returntype lst)
@@ -1005,8 +1005,11 @@ If STRING is method1(method2(), return method2."
    (t
     (all-completions prefix (ac-ctags-java-collect-enums enum-typename)))))
 
+(defun ac-ctags-get-lang-db (lang)
+  (cdr (assoc lang ac-ctags-tags-db)))
+
 (defun ac-ctags-java-collect-enums (enum-typename)
-  (loop for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+  (loop for lst in (ac-ctags-get-lang-db "Java")
         with ret = nil
         for kind = (ac-ctags-node-kind lst)
         for enum = (ac-ctags-node-enum lst)
