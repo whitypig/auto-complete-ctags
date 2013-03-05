@@ -604,7 +604,7 @@ ctags."
      (string= "method()"
               (ac-ctags-java-make-method-candidate node1)))
     (should
-     (string= "method()                          :int - SomeClass"
+     (string= "method()                :int - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node1))))
     (should
      (string= "()"
@@ -613,7 +613,7 @@ ctags."
      (string= "anotherMethod(int i, String s)"
               (ac-ctags-java-make-method-candidate node2)))
     (should
-     (string= "anotherMethod(int i, String s)   :void - SomeClass"
+     (string= "anotherMethod(int i, String s)    :void - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node2))))
     (should
      (string= "(int i, String s)"
@@ -622,7 +622,7 @@ ctags."
      (string= "SampleClass()"
               (ac-ctags-java-make-method-candidate node-ctor)))
     (should
-     (string= "SampleClass()                        - SampleClass"
+     (string= "SampleClass()              - SampleClass"
               (get-text-property 0 'view
                                  (ac-ctags-java-make-method-candidate node-ctor))))
     (should
@@ -848,3 +848,62 @@ ctags."
   (should
    (ac-ctags-tagsdb-needs-update-p '(0 0)))
   )
+
+(ert-deftest test-ac-ctags-java-parse-before-dot ()
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part "method1()")))
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(method2())")))
+  (should
+   (string= "varname"
+            (ac-ctags-java-parse-before-dot-part
+             "varname")))
+  (should
+   (string= "varname"
+            (ac-ctags-java-parse-before-dot-part
+             "(varname)")))
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(method2(), method3())")))
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(method2(), method3(method4()))")))
+  (should
+   (string= "method2"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(method2()")))
+  (should
+   (string= "method3"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(method2(method3()")))
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(method2().toString())")))
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part
+             "return method1()")))
+  (should
+   (string= "SampleClass"
+            (ac-ctags-java-parse-before-dot-part
+             "new SampleClass()")))
+  (should
+   (string= "method1"
+            (ac-ctags-java-parse-before-dot-part
+             "method1(new HashMap<String, new HashMap<int, int>>)"))))
+
+(ert-deftest test-ac-ctags-java-get-method-return-type ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (should
+      (string= "int"
+               (ac-ctags-java-get-method-return-type "helloAnotherWorld")))
+     (should
+      (null (ac-ctags-java-get-method-return-type "SampleClass"))))))

@@ -113,7 +113,9 @@ example.
   "Current major mode")
 
 (defvar ac-ctags-ac-sources-alist
-  '((java-mode . (ac-source-ctags-java-method ac-source-ctags-java-enum))))
+  '((java-mode . (ac-source-ctags-java-method
+                  ac-source-ctags-java-enum
+                  ac-source-ctags-java-field))))
 
 (defconst ac-ctags-no-document-message "No document available.")
 
@@ -388,11 +390,12 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
 (defun ac-ctags-update-ac-sources (from-mode to-mode)
   "Add and remove sources to and from `ac-sources' depending on
 FROM-MODE and TO-MODE."
-  (let ((sources-to-remove (ac-ctags-get-ac-sources-by-mode from-mode))
-        (sources-to-add (ac-ctags-get-ac-sources-by-mode to-mode)))
-    (setq ac-sources
-          (nunion (nset-difference ac-sources sources-to-remove)
-                  sources-to-add))))
+  (unless (eq from-mode to-mode)
+    (let ((sources-to-remove (ac-ctags-get-ac-sources-by-mode from-mode))
+          (sources-to-add (ac-ctags-get-ac-sources-by-mode to-mode)))
+      (setq ac-sources
+            (nunion (nset-difference ac-sources sources-to-remove)
+                    sources-to-add)))))
 
 (defun ac-ctags-trim-whitespace (str)
   "Trim prepending and trailing whitespaces and return the result
@@ -808,24 +811,46 @@ Signature property is used to construct yasnippet template."
          (end (save-excursion (re-search-backward "\\." (line-beginning-position) t 1)))
          (beg (save-excursion (and end
                                    (goto-char end)
-                                   (re-search-backward "[ ().\t]" (line-beginning-position) t 1)
-                                   (1+ (point)))))
-         (varname
+                                   (or (and (re-search-backward "[;{}]" (line-beginning-position) t 1)
+                                            (1+ (point)))
+                                       (line-beginning-position)))))
+         (str-before-dot
           (and (integerp beg) (integerp end) (< beg end)
                (ac-ctags-trim-whitespace
                 (buffer-substring-no-properties beg end)))))
-    (when (stringp varname)
+    (when (stringp str-before-dot)
       (cond
-       ((string= "this" varname)
+       ((string= "this" str-before-dot)
         (ac-ctags-java-current-type-name))
-       ((string-match "^[A-Z].*" varname)
-        varname)
-       ((string-match "^[_a-z].*" varname)
-        ;; varname seems a valid variable name
+       ((string-match "^[A-Z][A-Za-z_0-9]+$" str-before-dot)
+        ;; probably a classname
+        str-before-dot)
+       ((string-match "^[_a-z][A-Za-z0-9]+$" str-before-dot)
+        ;; str-before-dot seems a valid variable name
         (ac-ctags-java-extract-class-name
-         (ac-ctags-java-extract-variable-line varname) varname))
+         (ac-ctags-java-extract-variable-line str-before-dot) str-before-dot))
        (t
-        nil)))))
+        (let ((identifier (ac-ctags-java-parse-before-dot-part str-before-dot)))
+          (when (stringp identifier)
+            (cond
+             ((string-match (concat identifier "(")
+                            str-before-dot)
+              ;; this is a method name
+              (ac-ctags-java-get-method-return-type identifier))
+             (t
+              ;; this is a variable name
+              (ac-ctags-java-extract-class-name
+               (ac-ctags-java-extract-variable-line identifier) identifier))))))))))
+
+(defun ac-ctags-java-get-method-return-type (method-name)
+  (loop with case-fold-search = nil
+        for lst in (cdr (assoc "Java" ac-ctags-tags-db))
+        for name = (ac-ctags-node-name lst)
+        for kind = (ac-ctags-node-kind lst)
+        for returntype = (ac-ctags-node-returntype lst)
+        when (and (string= method-name name)
+                  (string= kind "method"))
+        do (return returntype)))
 
 (defun ac-ctags-java-current-type-name ()
   "Return a classname where the current position is in, or nil."
@@ -918,14 +943,24 @@ If STRING is method1(method2(), return method2."
         do (cond
             ((zerop paren-count)
              (return-from this-func (and identifier
-                                      (ac-ctags-trim-whitespace
-                                       (reduce #'concat identifier)))))
+                                         (ac-ctags-trim-whitespace
+                                          (reduce #'concat identifier)))))
             (t
              (decf paren-count)
              (when identifier
                (push (ac-ctags-trim-whitespace (reduce #'concat identifier))
                      stack))
              (setq identifier nil)))
+        else if (or (string= ch " ") (string= ch "."))
+        do (cond
+            ((zerop paren-count)
+             ;; this space or dot delimits this expression
+             (return-from this-func
+               (and identifier
+                    (ac-ctags-trim-whitespace
+                     (reduce #'concat identifier)))))
+            (t
+             (push ch identifier)))
         else
         do (push ch identifier)
         finally (return-from this-func
@@ -933,7 +968,15 @@ If STRING is method1(method2(), return method2."
                     (when identifier
                       (push (ac-ctags-trim-whitespace (reduce #'concat identifier))
                             stack))
-                    (car stack)))))
+                    (car (ac-ctags-java-remove-keyword stack))))))
+
+(defun ac-ctags-java-remove-keyword (lst)
+  (remove-if (lambda (str)
+               (string-match (concat "return\\|"
+                                     "throws\\|"
+                                     "new")
+                             str))
+             lst))
 
 (ac-define-source ctags-java-enum
   '((candidates . ac-ctags-java-enum-candidates)
