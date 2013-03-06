@@ -1,7 +1,13 @@
-;(load "../auto-complete-ctags.el")
 (require 'ert)
-(eval-when-compile
-  (require 'cl))
+(require 'cl)
+
+(defun test-ac-ctags-before (file)
+  (with-temp-buffer
+    (insert-file-contents-literally file)
+    (eval-buffer)))
+
+(test-ac-ctags-before "../auto-complete-ctags.el")
+(test-ac-ctags-before "../auto-complete-ctags-java.el")
 
 (defconst test-ac-ctags-valid-tagfile "cpp.ctags")
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.tags")
