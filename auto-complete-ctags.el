@@ -1117,6 +1117,43 @@ If STRING is method1(method2(), return method2."
     (requires . 2)
     (prefix . ac-ctags-java-package-prefix)))
 
+(defun ac-ctags-java-constructor-prefix ()
+  (let ((case-fold-search nil))
+    (cond
+     ((save-excursion
+        (re-search-backward "new[ \t]+\\([A-Z][A-Za-z0-9_]+\\)" (line-beginning-position) t))
+      (match-beginning 1))
+     ((save-excursion
+        (re-search-backward "new[ \t][a-z.]+\\([A-Z][A-Za-z0-9]+\\)" (line-beginning-position) t))
+      (match-beginning 1))
+     (t
+      nil))))
+
+(defun ac-ctags-java-constructor-candidates ()
+  ;;(message "DEBUG: java-ctor-candidates, ac-prefix=%s" ac-prefix)
+  (all-completions ac-prefix (ac-ctags-java-collect-constructors ac-prefix)))
+
+(defun ac-ctags-java-collect-constructors (prefix)
+  (let ((case-fold-search nil))
+    (when (string-match "^[A-Z]" prefix)
+      (loop for node in (ac-ctags-get-lang-db "Java")
+            for name = (ac-ctags-node-name node)
+            for kind = (ac-ctags-node-kind node)
+            when (and (stringp name)
+                      (stringp kind)
+                      (string= kind "method")
+                      (string-match prefix name))
+            collect (ac-ctags-java-make-method-candidate node) into ctors
+            finally (return (sort ctors #'string<))))))
+
+(ac-define-source ctags-java-constructor
+  '((candidates . ac-ctags-java-constructor-candidates)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 2)
+    (prefix . ac-ctags-java-constructor-prefix)
+    (action . ac-ctags-java-method-action)))
+
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)
   (let ((f (assoc mode table)))

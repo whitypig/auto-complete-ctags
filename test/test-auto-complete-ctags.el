@@ -946,3 +946,12 @@ ctags."
      (should
       (equal '("auctionsniper.AuctionSniperDriver")
              (ac-ctags-java-package-candidates-1 "auctionsniper.AuctionSniperD"))))))
+
+(ert-deftest test-ac-ctags-java-collect-constructors ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
+     (should
+      (equal '("SampleClass()" "SampleClass(int arg1, String arg2)")
+             (mapcar #'substring-no-properties
+                     (ac-ctags-java-collect-constructors "Samp")))))))
