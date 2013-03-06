@@ -8,6 +8,7 @@
 (defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
 (defconst test-ac-ctags-java-tagsfile "java.tags")
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
+(defconst test-ac-ctags-java-goos-tagfile "goos.ctags")
 (defconst test-ac-ctags-c-tagsfile "c.ctags")
 (defconst test-ac-ctags-java-tagsfile-for-update "java.updated.ctags")
 (defconst test-ac-ctags-java-inf-tagsfile "inf.ctags")
@@ -812,8 +813,8 @@ ctags."
      (let ((major-mode 'java-mode))
        (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
        (ac-ctags-update-current-completion-table 'java-mode)
-       (should (ac-ctags-candidates-1 "methodWith" ac-ctags-current-completion-table))
-       (should-not (ac-ctags-candidates-1 "nonexist" ac-ctags-current-completion-table))))))
+       (should (ac-ctags-candidates-1 "methodWith"))
+       (should-not (ac-ctags-candidates-1 "nonexist"))))))
 
 (ert-deftest test-ac-ctags-check-tags-file-updated ()
   (test-ac-ctags-fixture
@@ -907,3 +908,41 @@ ctags."
                (ac-ctags-java-get-method-return-type "helloAnotherWorld")))
      (should
       (null (ac-ctags-java-get-method-return-type "SampleClass"))))))
+
+(ert-deftest test-ac-ctags-java-collect-packages ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
+     (should
+      (equal '("auctionsniper.ui" "auctionsniper.util" "auctionsniper.xmpp")
+             (ac-ctags-java-collect-packages "auctionsniper")))
+     (should
+      (equal '("auctionsniper.ui" "auctionsniper.util")
+             (ac-ctags-java-collect-packages "auctionsniper.u")))
+     (should
+      (equal '("auctionsniper.ui" "auctionsniper.util" "auctionsniper.xmpp")
+             (ac-ctags-java-collect-packages "auctionsniper.")))
+     (should
+      (null (ac-ctags-java-collect-packages "nonexist"))))))
+
+(ert-deftest test-ac-ctags-java-collect-classes-in-package ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
+     (should
+      (equal '("Announcer" "Defect")
+             (ac-ctags-java-collect-classes-in-package "auctionsniper.util")))
+     (should
+      (null (ac-ctags-java-collect-classes-in-package "non-exisit")))
+     )))
+
+(ert-deftest test-ac-ctags-java-package-candidates-1 ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
+     (should
+      (equal '("auctionsniper.xmpp")
+             (ac-ctags-java-package-candidates-1 "auctionsniper.x")))
+     (should
+      (equal '("auctionsniper.AuctionSniperDriver")
+             (ac-ctags-java-package-candidates-1 "auctionsniper.AuctionSniperD"))))))

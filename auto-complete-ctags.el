@@ -115,7 +115,8 @@ example.
 (defvar ac-ctags-ac-sources-alist
   '((java-mode . (ac-source-ctags-java-method
                   ac-source-ctags-java-enum
-                  ac-source-ctags-java-field))))
+                  ac-source-ctags-java-field
+                  ac-source-ctags-java-package))))
 
 (defconst ac-ctags-no-document-message "No document available.")
 
@@ -239,14 +240,15 @@ TAGS is expected to be an absolute path name."
       ;; todo: How can we get the return type? `signature' in tags file
       ;; does not contain the return type.
       (while (re-search-forward
-              "^\\([^!\t]+\\)\t[^\t]+\t\\(.*\\);\"\t.*$"
+              "^\\([^!\t]+\\)\t\\([^\t]+\\)\t\\(.*\\);\"\t.*$"
               nil t)
-        (let (line name cmd kind (lang "Others") signature
+        (let (line name file cmd kind (lang "Others") signature
                    class interface enum returntype)
           (setq line (match-string-no-properties 0)
                 name (match-string-no-properties 1)
+                file (match-string-no-properties 2)
                 cmd (ac-ctags-trim-whitespace
-                     (ac-ctags-strip-cmd (match-string-no-properties 2))))
+                     (ac-ctags-strip-cmd (match-string-no-properties 3))))
           ;; If this line contains a language information, we get it.
           (when (string-match "language:\\([^\t\n]+\\)" line)
             (setq lang (match-string-no-properties 1 line)))
@@ -264,9 +266,9 @@ TAGS is expected to be an absolute path name."
           (when (string-match "returntype:\\([^\t\n]+\\)" line)
             (setq returntype (match-string-no-properties 1 line)))
           (if (assoc lang tags-db)
-              (push `(,name ,cmd ,kind ,class ,interface ,signature ,enum ,returntype)
+              (push `(,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype)
                     (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,cmd ,kind ,class ,interface ,signature ,enum ,returntype))
+            (push `(,lang (,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype))
                   tags-db)))
         (progress-reporter-update reporter (point)))
       (progress-reporter-done reporter)))
@@ -325,26 +327,29 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
 (defun ac-ctags-node-name (node)
   (car node))
 
-(defun ac-ctags-node-command (node)
+(defun ac-ctags-node-file (node)
   (nth 1 node))
 
-(defun ac-ctags-node-kind (node)
+(defun ac-ctags-node-command (node)
   (nth 2 node))
 
-(defun ac-ctags-node-class (node)
+(defun ac-ctags-node-kind (node)
   (nth 3 node))
 
-(defun ac-ctags-node-interface (node)
+(defun ac-ctags-node-class (node)
   (nth 4 node))
 
-(defun ac-ctags-node-signature (node)
+(defun ac-ctags-node-interface (node)
   (nth 5 node))
 
-(defun ac-ctags-node-enum (node)
+(defun ac-ctags-node-signature (node)
   (nth 6 node))
 
-(defun ac-ctags-node-returntype (node)
+(defun ac-ctags-node-enum (node)
   (nth 7 node))
+
+(defun ac-ctags-node-returntype (node)
+  (nth 8 node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)
@@ -625,6 +630,7 @@ FROM-MODE and TO-MODE."
   "Return method candidates which belong to class CLASSNAME and
 whose name begins with PREFIX. If PREFIX is nil, return all
 methods in CLASSNAME. If CLASSNAME is nil, return nil."
+  ;;(message "DEBUG: method-candidates-1, classname=%s, prefix=%s" classname prefix)
   (cond
    ((null classname) nil)
    ((or (null prefix) (not (stringp prefix)) (zerop (length prefix)))
@@ -829,6 +835,9 @@ Signature property is used to construct yasnippet template."
         ;; str-before-dot seems a valid variable name
         (ac-ctags-java-extract-class-name
          (ac-ctags-java-extract-variable-line str-before-dot) str-before-dot))
+       ((string-match "^[a-z.]+\\.\\([A-Za-z0-9_]+\\)$" str-before-dot)
+        ;; case for "package.name.Classname."
+        (match-string-no-properties 1 str-before-dot))
        (t
         (let ((identifier (ac-ctags-java-parse-before-dot-part str-before-dot)))
           (when (stringp identifier)
@@ -1033,8 +1042,80 @@ If STRING is method1(method2(), return method2."
                   (string= kind "package")
                   (string-match prefix name))
         collect name into names
-        finally (return (sort (remove-duplicates names :test #'string=)
-                              #'string<))))
+        finally (return (sort (remove-if
+                               (lambda (package) (string= prefix package))
+                               (remove-duplicates names :test #'string=))
+                               #'string<))))
+
+(defun ac-ctags-java-collect-classes-in-package (package)
+  "Return a list of class names in package PACKAGE."
+  (loop with case-fold-search = nil
+        for lst in (ac-ctags-get-lang-db "Java")
+        for kind = (ac-ctags-node-kind lst)
+        for name = (ac-ctags-node-name lst)
+        for file = (ac-ctags-node-file lst)
+        when (and (stringp kind)
+                  (stringp name)
+                  (string= kind "class")
+                  (string-match (concat
+                                 (replace-regexp-in-string "\\." "/" package)
+                                 "/"
+                                 name)
+                                file))
+        collect name into names
+        finally (return (sort names #'string<))))
+
+(defun ac-ctags-java-package-candidates-1 (prefix)
+  (let ((case-fold-search nil))
+    (cond
+     ((string-match "\\.$" prefix)
+      ;; collect packages under prefix and classes in a package.
+      (append (ac-ctags-java-collect-packages (substring-no-properties
+                                                       prefix
+                                                       0
+                                                       (1- (length prefix))))
+              ;; we have to prepend package name to class name
+              (mapcar (lambda (class)
+                        (concat prefix class))
+                      (ac-ctags-java-collect-classes-in-package (substring-no-properties
+                                                                 prefix
+                                                                 0
+                                                                 (1- (length prefix)))))))
+     ((string-match "^[a-z.]+$" prefix)
+      ;; this is a package name
+      (ac-ctags-java-collect-packages prefix))
+     ((string-match "\\([a-z.]+\\)\\.\\([A-Z][A-Za-z_0-9]+\\)$" prefix)
+      (let ((package-name (match-string-no-properties 1 prefix)))
+        ;; this is a package name + class name
+        (mapcar (lambda (class)
+                  (concat package-name "." class))
+                (all-completions (match-string-no-properties 2 prefix)
+                                 (ac-ctags-java-collect-classes-in-package
+                                  (match-string-no-properties 1 prefix)))
+                )))
+     (t
+      nil))))
+
+(defun ac-ctags-java-package-candidates ()
+  "Candidate function for java package names."
+  (let ((case-fold-search nil))
+    (when (and (stringp ac-prefix)
+               (string-match "[a-z.]+\\([A-Z][a-zA-Z_0-9]+\\)*" ac-prefix))
+      (ac-ctags-java-package-candidates-1 ac-prefix))))
+
+(defun ac-ctags-java-package-prefix ()
+  (save-excursion
+    (when (re-search-backward "\\([[:space:](]\\|^\\)"
+                              (line-beginning-position)
+                              t)
+      (match-end 1))))
+
+(ac-define-source ctags-java-package
+  '((candidates . ac-ctags-java-package-candidates)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 2)
+    (prefix . ac-ctags-java-package-prefix)))
 
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)
