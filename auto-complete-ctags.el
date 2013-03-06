@@ -1021,6 +1021,21 @@ If STRING is method1(method2(), return method2."
         do (push (car lst) ret)
         finally (return (sort ret #'string<))))
 
+;; prefix should be like "name." or "nam"
+(defun ac-ctags-java-collect-packages (prefix)
+  "Return a list of package names which begin with PREFIX."
+  (loop with case-fold-search = nil
+        for lst in (ac-ctags-get-lang-db "Java")
+        for kind = (ac-ctags-node-kind lst)
+        for name = (ac-ctags-node-name lst)
+        when (and (stringp kind)
+                  (stringp name)
+                  (string= kind "package")
+                  (string-match prefix name))
+        collect name into names
+        finally (return (sort (remove-duplicates names :test #'string=)
+                              #'string<))))
+
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)
   (let ((f (assoc mode table)))
