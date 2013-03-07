@@ -235,12 +235,13 @@ Signature property is used to construct yasnippet template."
 
 (defun ac-ctags-java-extract-class-name (line varname)
   "Extract a classname of VARNAME from LINE and return it if found, or nil."
-  (when (and (stringp line)
-             (stringp varname)
-             (string-match (concat "\\([A-Z][A-Za-z0-9_]+\\)\\(<[^ ]+>\\)?[ \t]+"
-                                   varname)
-                           line))
-    (match-string-no-properties 1 line)))
+  (let ((case-fold-search nil))
+    (when (and (stringp line)
+               (stringp varname)
+               (string-match (concat "\\([A-Z][A-Za-z0-9_]+\\)\\(<[^ ]+>\\)?[ \t]+"
+                                     varname)
+                             line))
+      (match-string-no-properties 1 line))))
 
 (defun ac-ctags-java-extract-variable-line (varname)
   "Return string which we has inferred has a typename of VARNAME."
@@ -253,7 +254,8 @@ Signature property is used to construct yasnippet template."
 
 (defun ac-ctags-java-extract-variable-line-1 (varname beg end)
   (save-excursion
-    (loop while (re-search-forward (concat "[ \t]" varname "[; =)]")
+    (loop with case-fold-search = nil
+          while (re-search-forward (concat "[ \t]" varname "[; =)]")
                                    end
                                    t)
           initially do (goto-char beg)
