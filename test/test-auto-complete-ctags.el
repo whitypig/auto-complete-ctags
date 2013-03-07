@@ -961,3 +961,4 @@ ctags."
       (equal '("SampleClass()" "SampleClass(int arg1, String arg2)")
              (mapcar #'substring-no-properties
                      (ac-ctags-java-collect-constructors "Samp")))))))
+
