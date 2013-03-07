@@ -211,20 +211,20 @@ Signature property is used to construct yasnippet template."
 
 (defun ac-ctags-java-current-type-name ()
   "Return a classname where the current position is in, or nil."
-  (let ((case-fold-search nil))
-    (save-excursion
-      (loop with ret = nil
-            while (re-search-backward (concat
-                                       "\\(class\\|interface\\|enum\\)[ \t]+"
-                                       "[A-Z][A-Za-z0-9_]+"
-                                       )
-                                      nil
-                                      (point-min))
-            do (setq ret (ac-ctags-java-has-type-name
-                          (buffer-substring-no-properties (line-beginning-position)
-                                                          (line-end-position))))
-            when ret
-            return ret))))
+  (save-excursion
+    (loop with case-fold-search = nil
+          with ret = nil
+          while (re-search-backward (concat
+                                     "\\(class\\|interface\\|enum\\)[ \t]+"
+                                     "[A-Z][A-Za-z0-9_]+"
+                                     )
+                                    nil
+                                    (point-min))
+          do (setq ret (ac-ctags-java-has-type-name
+                        (buffer-substring-no-properties (line-beginning-position)
+                                                        (line-end-position))))
+          when ret
+          return ret)))
 
 (defun ac-ctags-java-has-type-name (line)
   (when (string-match (concat
