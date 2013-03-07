@@ -12,6 +12,7 @@
 (defconst test-ac-ctags-valid-tagfile "cpp.ctags")
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.tags")
 (defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
+(defconst test-ac-ctags-cpp-tagsfile2 "test_with_q.ctags")
 (defconst test-ac-ctags-java-tagsfile "java.tags")
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
 (defconst test-ac-ctags-java-goos-tagfile "goos.ctags")
@@ -962,3 +963,97 @@ ctags."
              (mapcar #'substring-no-properties
                      (ac-ctags-java-collect-constructors "Samp")))))))
 
+(ert-deftest test-ac-ctags-cpp-parse-before-dot-or-arrow-part ()
+  (should
+   (string= "varname"
+            (ac-ctags-cpp-parse-before-dot-or-arrow-part "varname")))
+  (should
+   (string= "SomeClass::func1"
+            (ac-ctags-cpp-parse-before-dot-or-arrow-part "SomeClass::func1()")))
+  (should
+   (string= "SomeClass::func1"
+            (ac-ctags-cpp-parse-before-dot-or-arrow-part "SomeClass::func1(func2(), func3())")))
+  (should
+   (string= "varname"
+            (ac-ctags-cpp-parse-before-dot-or-arrow-part "(*varname)"))))
+
+(ert-deftest test-ac-ctags-cpp-line-has-typeinfo-p ()
+  (should
+   (ac-ctags-cpp-line-has-typeinfo-p "iter"
+                                     "std::vector<int>::const_iterator iter;"))
+  (should
+   (ac-ctags-cpp-line-has-typeinfo-p "var"
+                                     "int* var;"))
+  (should
+   (ac-ctags-cpp-line-has-typeinfo-p "var"
+                                     "SomeClass * var;"))
+  (should
+   (ac-ctags-cpp-line-has-typeinfo-p
+    "var"
+    "SomeClass *foo_, *bar_, *var, *buzz_;")))
+
+(ert-deftest test-ac-ctags-cpp-extract-type-name ()
+  (should
+   (string= "QLabel"
+            (ac-ctags-cpp-extract-type-name "QLabel *namedLabel_;"
+                                            "namedLabel_")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-extract-type-name
+             "SomeClass *foo_, *bar_, *var, *buzz_;"
+             "var")))
+  (should
+   (string= "std::vector<int>::const_iterator"
+            (ac-ctags-cpp-extract-type-name
+             "std::vector<int>::const_iterator iter;"
+             "iter")))
+  (should
+   (string= "std::map<int, int>"
+            (ac-ctags-cpp-extract-type-name
+             "const std::map<int, int> map1, map2, map3;"
+             "map2")))
+  (should
+   (string= "std::vector<int>"
+            (ac-ctags-cpp-extract-type-name
+             "std::vector<int> vec(10);"
+             "vec")))
+  )
+
+(ert-deftest test-ac-ctags-cpp-get-function-return-type ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
+     (should
+      (string= "void"
+               (ac-ctags-cpp-get-function-return-type "set")))
+     (should
+      (string= "const ParamGeneratorInterface*"
+               (ac-ctags-cpp-get-function-return-type
+                "BaseGenerator")))
+     (should
+      (null (ac-ctags-cpp-get-function-return-type "non-exisit"))))))
+
+(ert-deftest test-ac-ctags-cpp-collect-member-functions ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'new)
+     (should
+      (equal '("set(int i)")
+             (ac-ctags-cpp-collect-member-functions "TestClass" "se")))
+     (should
+      (equal "set(int i)             :void - TestClass"
+             (get-text-property 0
+                                'view
+                                (car
+                                 (ac-ctags-cpp-collect-member-functions "TestClass" "set")))))
+     (should
+      (equal '("TestClass()")
+             (ac-ctags-cpp-collect-member-functions "TestClass" "TestC"))))))
+
+(ert-deftest test-ac-ctags-cpp-get-typename-of-variable-1 ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'new)
+     (should
+      (string= "int"
+               (ac-ctags-cpp-get-typename-of-variable-1 "i_"))))))
