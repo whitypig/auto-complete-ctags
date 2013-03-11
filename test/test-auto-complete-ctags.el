@@ -1057,3 +1057,46 @@ ctags."
      (should
       (string= "int"
                (ac-ctags-cpp-get-typename-of-variable-1 "i_"))))))
+
+(ert-deftest test-ac-ctags-cpp-get-members-by-scope-operator ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'new)
+     (should
+      (equal '("get()")
+             (mapcar #'substring-no-properties
+                     (ac-ctags-cpp-get-members-by-scope-operator "TestClass" "ge"))))
+     (should
+      (equal '("i_")
+             (mapcar #'substring-no-properties
+                     (ac-ctags-cpp-get-members-by-scope-operator
+                      "TestClass" "i")))))))
+
+(ert-deftest test-ac-ctags-cpp-split-string-by-separator ()
+  (should
+   (equal '("std" "::" "vector<int>" "::")
+          (ac-ctags-cpp-split-string-by-separator "std::vector<int>::" "::")))
+  (should
+   (equal '("std" "::" "vector<int>")
+          (ac-ctags-cpp-split-string-by-separator "std::vector<int>" "::"))))
+
+;; std::vector<std::Map>::[]const_iterator
+(ert-deftest test-ac-ctags-cpp-parse-before-scope-operator-1 ()
+  (should
+   (string=
+    "vector"
+    (ac-ctags-cpp-parse-before-scope-operator-1 "std::vector<std::Map>")))
+  (should
+   (string=
+    "map"
+    (ac-ctags-cpp-parse-before-scope-operator-1 "std::map<std::vector<int>, std::string>"))))
+
+(ert-deftest test-ac-ctags-cpp-strip-angle-brackets ()
+  (should
+   (string=
+    "std::vector"
+    (ac-ctags-cpp-strip-angle-brackets "std::vector<int>")))
+  (should
+   (string=
+    "std::map"
+    (ac-ctags-cpp-strip-angle-brackets "std::map<std::vector<int>, std::string>"))))
