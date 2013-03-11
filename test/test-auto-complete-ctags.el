@@ -1048,7 +1048,10 @@ ctags."
                                  (ac-ctags-cpp-collect-member-functions "TestClass" "set")))))
      (should
       (equal '("TestClass()")
-             (ac-ctags-cpp-collect-member-functions "TestClass" "TestC"))))))
+             (ac-ctags-cpp-collect-member-functions "TestClass" "TestC")))
+     (should
+      (equal '("normal_func()")
+             (ac-ctags-cpp-collect-member-functions "TestClass" "normal_"))))))
 
 (ert-deftest test-ac-ctags-cpp-get-typename-of-variable-1 ()
   (test-ac-ctags-fixture
@@ -1100,3 +1103,11 @@ ctags."
    (string=
     "std::map"
     (ac-ctags-cpp-strip-angle-brackets "std::map<std::vector<int>, std::string>"))))
+
+(ert-deftest test-ac-ctags-cpp-remove-trailing-keyword-from-signature ()
+  (should
+   (string= "()"
+            (ac-ctags-cpp-remove-trailing-keyword-from-signature "() const")))
+  (should
+   (string= "(int i, int j)"
+            (ac-ctags-cpp-remove-trailing-keyword-from-signature "(int i, int j)"))))

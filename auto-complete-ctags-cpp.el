@@ -243,6 +243,8 @@ Also we ignore primitive types such as int, double."
                   (stringp class)
                   (string= class classname)
                   (or (string= kind "function") (string= kind "prototype"))
+                  ;; exclude names having a scope operator
+                  (not (string-match-p "::" name))
                   (or (null prefix)
                       (string= prefix "")
                       (string-match-p (concat "^" prefix "[^:]*") name)))
@@ -268,7 +270,8 @@ functions of class CLASSNAME."
 
 (ac-define-source ctags-cpp-member-functions
   '((candidates . ac-ctags-cpp-member-function-candidates)
-    (cache)
+    ;; commented out for debug purpose
+    ;(cache)
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
@@ -301,7 +304,7 @@ PREFIX is nil or empty string, return all members of CLASS."
      ((member kind '("function" "prototype"))
       (ac-ctags-cpp-make-function-candidate node))
      ((string= kind "member")
-      (ac-ctags-java-make-field-candidate node))
+      (ac-ctags-cpp-make-field-candidate node))
      (t
       ;; for now we return this node's name as is.
       (ac-ctags-node-name node)))))
@@ -310,10 +313,8 @@ PREFIX is nil or empty string, return all members of CLASS."
   "Return presentation form of NODE.
 Signature property is used to construct yasnippet template."
   (let* ((ret (concat (ac-ctags-node-name node)
-                      (ac-ctags-trim-whitespace
-                       ;; strip trialing "const" and whitespace from signature
-                       (replace-regexp-in-string
-                        "const$" "" (ac-ctags-node-signature node)))))
+                      (ac-ctags-cpp-remove-trailing-keyword-from-signature
+                       (ac-ctags-node-signature node))))
          (returntype (when (ac-ctags-node-returntype node)
                        (concat ":" (ac-ctags-node-returntype node))))
          (classname (or (ac-ctags-node-class node) (ac-ctags-node-interface node)))
@@ -323,10 +324,14 @@ Signature property is used to construct yasnippet template."
                               (ac-ctags-get-spaces-to-insert ret viewprop)
                               returntype
                               " - " classname)
-                'signature (ac-ctags-node-signature node))))
+                'signature (ac-ctags-cpp-remove-trailing-keyword-from-signature
+                            (ac-ctags-node-signature node)))))
+
+(defun ac-ctags-cpp-remove-trailing-keyword-from-signature (signature)
+  (replace-regexp-in-string ".*)\\([^()]+\\)$" "" signature nil nil 1))
 
 (defun ac-ctags-cpp-make-field-candidate (node)
-  )
+  (ac-ctags-java-make-field-candidate node))
 
 (defun ac-ctags-cpp-split-string-by-separator (string separator)
   "Split STRING by SEPARATOR which could be regexp.
@@ -383,11 +388,11 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
 
 (ac-define-source ctags-cpp-scope-members
   '((candidates . ac-ctags-cpp-scope-member-candidates)
-    (cache)
+    ;; commented out for debug purpose
+    ;(cache)
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
-    ;; prefix is either "." or "->"
     (prefix . "::\\(.*\\)")
     ))
 
