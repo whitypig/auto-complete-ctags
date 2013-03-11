@@ -68,7 +68,8 @@
         str-before-dot)
        ((string-match "^[_a-z][A-Za-z_0-9]+$" str-before-dot)
         ;; str-before-dot seems a valid variable name
-        (ac-ctags-cpp-get-typename-of-variable str-before-dot))
+        (ac-ctags-cpp-strip-angle-brackets
+         (ac-ctags-cpp-get-typename-of-variable str-before-dot)))
        (t
         (let ((identifier (ac-ctags-cpp-parse-before-dot-or-arrow-part str-before-dot)))
           (when (stringp identifier)
@@ -80,6 +81,10 @@
              (t
               ;; this is a variable name
               (ac-ctags-cpp-get-typename-of-variable identifier))))))))))
+
+(defun ac-ctags-cpp-strip-angle-brackets (string)
+  (when (stringp string)
+    (replace-regexp-in-string "<.*>" "" string)))
 
 (defun ac-ctags-cpp-get-typename-of-variable (varname)
   (or (ac-ctags-cpp-extract-type-name
@@ -101,43 +106,44 @@
 (defun ac-ctags-cpp-extract-type-name (line varname)
   "Extract a type of VARNAME from LINE and return it if found, or nil.
 Also we ignore primitive types such as int, double."
-  (loop with case-fold-search = nil
-        for ch in (nreverse (split-string
-                             (substring-no-properties line
-                                                      0
-                                                      (string-match
-                                                       (concat "[ ,]"
-                                                               varname
-                                                               "[,( ;=]")
-                                                       line))
-                             ""
-                             t))
-        with acc = nil
-        with stack = nil
-        with nparen = 0
-        with nangle-bracket = 0
-        if (string= ch ")")
-        do (incf nparen)
-        else if (string= ch "(")
-        do (decf nparen)
-        else if (string= ch ">")
-        do (progn (incf nangle-bracket)
-                  (push ch acc))
-        else if (string= ch "<")
-        do (progn (decf nangle-bracket)
-                  (push ch acc))
-        else if (or (string= ch " ") (string= ch ","))
-        do (cond
-            ((and (zerop nparen) (zerop nangle-bracket))
-             (when acc (push (reduce #'concat acc) stack))
-             (setq acc nil))
-            (t
-             (push ch acc)))
-        else
-        do (push ch acc)
-        finally (return (progn (when acc
-                                 (push (reduce #'concat acc) stack))
-                               (car (ac-ctags-cpp-remove-keyword stack))))))
+  (when (stringp line)
+    (loop with case-fold-search = nil
+          for ch in (nreverse (split-string
+                               (substring-no-properties line
+                                                        0
+                                                        (string-match
+                                                         (concat "[ ,]"
+                                                                 varname
+                                                                 "[,( ;=]")
+                                                         line))
+                               ""
+                               t))
+          with acc = nil
+          with stack = nil
+          with nparen = 0
+          with nangle-bracket = 0
+          if (string= ch ")")
+          do (incf nparen)
+          else if (string= ch "(")
+          do (decf nparen)
+          else if (string= ch ">")
+          do (progn (incf nangle-bracket)
+                    (push ch acc))
+          else if (string= ch "<")
+          do (progn (decf nangle-bracket)
+                    (push ch acc))
+          else if (or (string= ch " ") (string= ch ","))
+          do (cond
+              ((and (zerop nparen) (zerop nangle-bracket))
+               (when acc (push (reduce #'concat acc) stack))
+               (setq acc nil))
+              (t
+               (push ch acc)))
+          else
+          do (push ch acc)
+          finally (return (progn (when acc
+                                   (push (reduce #'concat acc) stack))
+                                 (car (ac-ctags-cpp-remove-keyword stack)))))))
 
 (defun ac-ctags-cpp-extract-variable-line (varname)
   "Return string which we has inferred has a typename of VARNAME."
@@ -232,30 +238,33 @@ Also we ignore primitive types such as int, double."
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         for class = (ac-ctags-node-class node)
-        when (and (stringp kind)
+        when (and (stringp classname)
+                  (stringp kind)
                   (stringp class)
                   (string= class classname)
                   (or (string= kind "function") (string= kind "prototype"))
                   (or (null prefix)
                       (string= prefix "")
                       (string-match-p (concat "^" prefix "[^:]*") name)))
-        collect (ac-ctags-java-make-method-candidate node)))
+        collect (ac-ctags-cpp-make-function-candidate node)))
 
 (defun ac-ctags-cpp-member-function-candidates ()
   (ac-ctags-cpp-member-function-candidates-1
    (ac-ctags-cpp-determine-type-name) ac-prefix))
 
 (defun ac-ctags-cpp-member-function-candidates-1 (classname prefix)
-  (ac-ctags-cpp-collect-member-functions classname prefix))
+  "Return candidates that begin with PREFIX and that are member
+functions of class CLASSNAME."
+  (when (stringp classname)
+    (or (ac-ctags-cpp-collect-member-functions classname prefix)
+        (when (string-match "::\\([^:]+\\)" classname)
+          (ac-ctags-cpp-collect-member-functions
+           (match-string-no-properties 1 classname) prefix)))))
 
 (defun ac-ctags-cpp-member-function-prefix ()
   (save-excursion
-    (or (save-excursion
-          (re-search-backward "\\." (line-beginning-position) t 1)
-          (match-end 0))
-        (save-excursion
-          (re-search-backward "->" (line-beginning-position) t 1)
-          (match-end 0)))))
+    (re-search-backward "\\(\\.\\|->\\)" (line-beginning-position) t)
+    (match-end 1)))
 
 (ac-define-source ctags-cpp-member-functions
   '((candidates . ac-ctags-cpp-member-function-candidates)
@@ -263,8 +272,124 @@ Also we ignore primitive types such as int, double."
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
+    ;; prefix is either "." or "->"
     (prefix . ac-ctags-cpp-member-function-prefix)
     (action . ac-ctags-java-method-action)))
+
+(defun ac-ctags-cpp-get-members-by-scope-operator (class prefix)
+  "Return a list of strings that begin with PREFIX and that are
+members in CLASS. CLASS is either classname or namespace. If
+PREFIX is nil or empty string, return all members of CLASS."
+  (loop with case-fold-search = nil
+        with needle = (concat class "::" prefix)
+        for node in (ac-ctags-get-lang-db "C++")
+        for name = (ac-ctags-node-name node)
+        for kind = (ac-ctags-node-kind node)
+        for classname = (ac-ctags-node-class node)
+        when (and (string= classname class)
+                  (or (null prefix)
+                      (string= prefix "")
+                      (string-match (concat "^" prefix) name)))
+        collect (ac-ctags-cpp-make-candidate node)))
+
+(defun ac-ctags-cpp-make-candidate (node)
+  (let ((kind (ac-ctags-node-kind node))
+        (case-fold-search nil))
+    (cond
+     ((null kind)
+      nil)
+     ((member kind '("function" "prototype"))
+      (ac-ctags-cpp-make-function-candidate node))
+     ((string= kind "member")
+      (ac-ctags-java-make-field-candidate node))
+     (t
+      ;; for now we return this node's name as is.
+      (ac-ctags-node-name node)))))
+
+(defun ac-ctags-cpp-make-function-candidate (node)
+  "Return presentation form of NODE.
+Signature property is used to construct yasnippet template."
+  (let* ((ret (concat (ac-ctags-node-name node)
+                      (ac-ctags-trim-whitespace
+                       ;; strip trialing "const" and whitespace from signature
+                       (replace-regexp-in-string
+                        "const$" "" (ac-ctags-node-signature node)))))
+         (returntype (when (ac-ctags-node-returntype node)
+                       (concat ":" (ac-ctags-node-returntype node))))
+         (classname (or (ac-ctags-node-class node) (ac-ctags-node-interface node)))
+         (viewprop (concat returntype " - " classname)))
+    (propertize ret
+                'view (concat ret
+                              (ac-ctags-get-spaces-to-insert ret viewprop)
+                              returntype
+                              " - " classname)
+                'signature (ac-ctags-node-signature node))))
+
+(defun ac-ctags-cpp-make-field-candidate (node)
+  )
+
+(defun ac-ctags-cpp-split-string-by-separator (string separator)
+  "Split STRING by SEPARATOR which could be regexp.
+For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
+  (let ((ret (reduce (lambda (x y)
+                       (cons x
+                             (cons separator y)))
+                     (split-string string (regexp-quote separator) t)
+                     :initial-value nil
+                     :from-end t)))
+    (if (string-match (concat "" separator "$") string)
+        ret
+      (nbutlast ret))))
+
+(defun ac-ctags-cpp-scope-member-candidates ()
+  (ac-ctags-cpp-get-members-by-scope-operator
+   (ac-ctags-cpp-parse-before-scope-operator)
+   ac-prefix))
+
+(defun ac-ctags-cpp-parse-before-scope-operator ()
+  (ac-ctags-trim-whitespace
+   (ac-ctags-cpp-parse-before-scope-operator-1
+    (buffer-substring-no-properties
+     (save-excursion
+       (or (re-search-backward "[;{}()=]" (line-beginning-position) t)
+           (line-beginning-position)))
+     (save-excursion
+       ;; should match
+       (re-search-backward "::" (line-beginning-position) t)
+       (match-beginning 0))))))
+
+(defun ac-ctags-cpp-parse-before-scope-operator-1 (string)
+  (loop named this-func
+        with case-fold-search = nil
+        with lst = (nreverse (split-string string "" t))
+        with len = (length lst)
+        for ch in lst
+        for i from 0
+        with acc = nil
+        with nangle-bracket = 0
+        if (string= ch ">")
+        do (incf nangle-bracket)
+        else if (string= ch "<")
+        do (decf nangle-bracket)
+        else if (string= ch ":")
+        do (when (and (< (1+ i) len)
+                      (string= ":" (nth (1+ i) lst))
+                      (zerop nangle-bracket))
+             (return-from this-func (reduce #'concat acc)))
+        else
+        do (when (zerop nangle-bracket)
+             (push ch acc))
+        finally (return-from this-func (reduce #'concat acc))))
+
+(ac-define-source ctags-cpp-scope-members
+  '((candidates . ac-ctags-cpp-scope-member-candidates)
+    (cache)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 0)
+    ;; prefix is either "." or "->"
+    (prefix . "::\\(.*\\)")
+    ))
 
 (provide 'auto-complete-ctags-cpp)
 ;;; auto-complete-ctags-cpp.el ends here
