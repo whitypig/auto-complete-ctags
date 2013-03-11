@@ -277,7 +277,7 @@ functions of class CLASSNAME."
     (requires . 0)
     ;; prefix is either "." or "->"
     (prefix . ac-ctags-cpp-member-function-prefix)
-    (action . ac-ctags-java-method-action)))
+    (action . ac-ctags-cpp-function-action)))
 
 (defun ac-ctags-cpp-get-members-by-scope-operator (class prefix)
   "Return a list of strings that begin with PREFIX and that are
@@ -289,7 +289,9 @@ PREFIX is nil or empty string, return all members of CLASS."
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         for classname = (ac-ctags-node-class node)
-        when (and (string= classname class)
+        when (and (stringp classname)
+                  (string= classname class)
+                  (not (string-match-p "::" name))
                   (or (null prefix)
                       (string= prefix "")
                       (string-match (concat "^" prefix) name)))
@@ -386,6 +388,18 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
              (push ch acc))
         finally (return-from this-func (reduce #'concat acc))))
 
+(defun ac-ctags-cpp-function-action ()
+  "Expand yasnippet template for this method signature."
+  (when (fboundp 'yas-expand-snippet)
+    (let* ((cand (cdr ac-last-completion))
+           (signature (get-text-property 0 'signature cand))
+           (template (and (stringp signature)
+                          (ac-ctags-make-yasnippet-template-from-signature
+                           signature))))
+      (when (stringp template)
+        (delete-char (- (length signature)))
+        (yas-expand-snippet template)))))
+
 (ac-define-source ctags-cpp-scope-members
   '((candidates . ac-ctags-cpp-scope-member-candidates)
     ;; commented out for debug purpose
@@ -394,6 +408,7 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
     (prefix . "::\\(.*\\)")
+    (action . ac-ctags-cpp-function-action)
     ))
 
 (provide 'auto-complete-ctags-cpp)

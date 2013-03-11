@@ -657,6 +657,11 @@ ctags."
    (string=
     "(${1:Map<String, String> map}, ${2:int j})$0"
     (ac-ctags-make-yasnippet-template-from-signature "(Map<String, String> map, int j)")))
+  (should
+   (string=
+    "(${1:QWidget *parent = 0})$0"
+    (ac-ctags-make-yasnippet-template-from-signature
+     "(QWidget *parent = 0)")))
   )
 
 

@@ -67,7 +67,7 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
   (when (fboundp 'yas-expand-snippet)
     (let* ((cand (cdr ac-last-completion))
            (signature (get-text-property 0 'signature cand))
-           (template (and signature
+           (template (and (stringp signature)
                           (ac-ctags-make-yasnippet-template-from-signature signature))))
       (when (stringp template)
         (delete-char (- (length signature)))
