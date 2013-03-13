@@ -1116,3 +1116,30 @@ ctags."
   (should
    (string= "(int i, int j)"
             (ac-ctags-cpp-remove-trailing-keyword-from-signature "(int i, int j)"))))
+
+(ert-deftest test-ac-ctags-cpp-strip-typename ()
+  (should
+   (string= "typename"
+            (ac-ctags-cpp-strip-typename "const typename")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-strip-typename "SomeClass*")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-strip-typename "SomeClass **")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-strip-typename "SomeClass * *")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-strip-typename "SomeClass* *")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-strip-typename "const SomeClass ** const")))
+  (should
+   (string= "vector"
+            (ac-ctags-cpp-strip-typename "vector<int>")))
+  (should
+   (string= "map"
+            (ac-ctags-cpp-strip-typename "map<vector<int>, vector<std::string>>")))
+  )

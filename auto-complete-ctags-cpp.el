@@ -59,28 +59,40 @@
                (ac-ctags-trim-whitespace
                 (buffer-substring-no-properties beg end)))))
     (when (stringp str-before-dot)
-      (cond
-       ((string= "this" str-before-dot)
-        ;; return this class name
-        (ac-ctags-java-current-type-name))
-       ((string-match "^[A-Z][A-Za-z_0-9]+$" str-before-dot)
-        ;; this is probably a classname, so we return it as is.
-        str-before-dot)
-       ((string-match "^[_a-z][A-Za-z_0-9]+$" str-before-dot)
-        ;; str-before-dot seems a valid variable name
-        (ac-ctags-cpp-strip-angle-brackets
-         (ac-ctags-cpp-get-typename-of-variable str-before-dot)))
-       (t
-        (let ((identifier (ac-ctags-cpp-parse-before-dot-or-arrow-part str-before-dot)))
-          (when (stringp identifier)
-            (cond
-             ((string-match (concat identifier "(")
-                            str-before-dot)
-              ;; this is a function name
-              (ac-ctags-cpp-get-function-return-type identifier))
-             (t
-              ;; this is a variable name
-              (ac-ctags-cpp-get-typename-of-variable identifier))))))))))
+      (ac-ctags-cpp-determine-type-name-1 str-before-dot))))
+
+(defun ac-ctags-cpp-current-class-name ()
+  "Return a class name where the current context is in, or nil."
+  ;; TODO
+  ;; cpp allows codes that are NOT in a class
+  (ac-ctags-java-current-type-name))
+
+(defun ac-ctags-cpp-determine-type-name-1 (str-before-dot)
+  (assert (stringp str-before-dot) t "ac-ctags-cpp-determine-type-name-1")
+  (cond
+   ((string= "this" str-before-dot)
+    ;; return this class name
+    (ac-ctags-cpp-current-class-name))
+   ((string-match "^[A-Z][A-Za-z_0-9]+$" str-before-dot)
+    ;; this is probably a classname, so we return it as is.
+    str-before-dot)
+   ((string-match "^[_a-z][A-Za-z_0-9]+$" str-before-dot)
+    ;; str-before-dot seems a valid variable name
+    (ac-ctags-cpp-strip-angle-brackets
+     (ac-ctags-cpp-get-typename-of-variable str-before-dot)))
+   (t
+    (let ((identifier (ac-ctags-cpp-parse-before-dot-or-arrow-part str-before-dot)))
+      (when (stringp identifier)
+        (cond
+         ((string-match (concat identifier "(")
+                        str-before-dot)
+          ;; this is a function name
+          ;; If str-before-dot is like SomeClass::static_function(),
+          ;; identifier should be SomeClass::static_function.
+          (ac-ctags-cpp-get-function-return-type identifier))
+         (t
+          ;; this is a variable name
+          (ac-ctags-cpp-get-typename-of-variable identifier))))))))
 
 (defun ac-ctags-cpp-strip-angle-brackets (string)
   (when (stringp string)
@@ -258,10 +270,27 @@ Also we ignore primitive types such as int, double."
   "Return candidates that begin with PREFIX and that are member
 functions of class CLASSNAME."
   (when (stringp classname)
-    (or (ac-ctags-cpp-collect-member-functions classname prefix)
-        (when (string-match "::\\([^:]+\\)" classname)
-          (ac-ctags-cpp-collect-member-functions
-           (match-string-no-properties 1 classname) prefix)))))
+    ;; I don't care whether CLASSNAME is a pointer or not.
+    ;; I just treat it as a class, so remove "*" from CLASSNAME.
+    (let ((typename (ac-ctags-cpp-strip-typename classname)))
+      (or (ac-ctags-cpp-collect-member-functions typename prefix)
+          ;; If no candidates are found, strip namespace and do the job.
+          (when (string-match "::\\([^:]+\\)" typename)
+            (ac-ctags-cpp-collect-member-functions
+             (match-string-no-properties 1 typename) prefix))))))
+
+(defun ac-ctags-cpp-strip-typename (typename)
+  "Remove c++ keyowrds, template arguments, and \"*\" from TYPENAME."
+  (assert (stringp typename) "ac-ctags-cpp-strip-typename")
+  (let ((ret typename))
+    (setq ret (replace-regexp-in-string "\\(const\\)"
+                                        ""
+                                        ret))
+    (setq ret (replace-regexp-in-string "<.*>" "" ret))
+    (setq ret (replace-regexp-in-string "[ *]+$"
+                                        ""
+                                        ret))
+    (ac-ctags-trim-whitespace ret)))
 
 (defun ac-ctags-cpp-member-function-prefix ()
   (save-excursion
