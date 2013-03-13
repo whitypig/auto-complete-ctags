@@ -323,7 +323,8 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
                                       (split-string str "[,]"))))
               ")")))))
 
-;; node is (name command kind class signature)
+;; Node accessor functions.
+;; Node represents one line in tags file.
 (defun ac-ctags-node-name (node)
   (car node))
 
