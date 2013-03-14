@@ -59,6 +59,11 @@
   :type 'number
   :group 'auto-complete-ctags)
 
+(defcustom ac-ctags-cache-dir "~/.ac-ctags"
+  "Directory name where cache files are stored."
+  :type 'directory
+  :group 'auto-complete-ctags)
+
 (defface ac-ctags-candidate-face
   '((t (:background "slate gray" :foreground "white")))
   "Face for ctags candidate")
@@ -220,59 +225,106 @@ current list."
 (defun ac-ctags-build-tagsdb (tags-list tags-db)
   "Build tagsdb from each element of TAGS-LIST."
   (dolist (e tags-list tags-db)
-    (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))))
+    (setq tags-db (or (ac-ctags-read-tagsdb-from-cache e tags-db)
+                      (ac-ctags-build-tagsdb-from-tags e tags-db)))))
+
+(defun ac-ctags-read-tagsdb-from-cache (tags-file tags-db)
+  "Read tagsdb from cache and merge it with TAGS-DB.
+Cache file, if exists, corresponds to one tags file"
+  (when (ac-ctags-cache-file-exist-p tags-file)
+    ;; read from cache and do merge.
+    (let ((db nil))
+      (with-current-buffer (find-file-noselect
+                            (ac-ctags-get-cache-file tags-file))
+        (goto-char (point-min))
+        (setq db (read (current-buffer)))
+        (kill-buffer))
+      (setq tags-db (ac-ctags-merge-db db tags-db)))))
+
+(defun ac-ctags-cache-file-exist-p (tags-file)
+  (file-exists-p (concat (directory-file-name (expand-file-name ac-ctags-cache-dir))
+                         "/"
+                         (sha1 (expand-file-name tags-file))
+                         ".acctags")))
+
+(defun ac-ctags-get-cache-file (tags-file)
+  "Return a cache filename for TAGS-FILE."
+  (let* ((cache-name (sha1 (expand-file-name tags-file)))
+         (cache-pathname (concat (directory-file-name (expand-file-name ac-ctags-cache-dir))
+                                 "/"
+                                 cache-name)))
+    (concat cache-pathname ".acctags")))
 
 (defun ac-ctags-build-tagsdb-from-tags (tags tags-db)
-  "Build tag information db frm TAGS and return the db.
+  "Build tag information db from TAGS and return the db.
 Each element of DB is a list like (name cmd signature) where NAME
   is tag name, CMD is info constructed from EX command, and
   SIGNATURE is as is. If NAME entry has no signature, then
   SIGNATURE is nil.
 TAGS is expected to be an absolute path name."
   (assert (ac-ctags-is-valid-tags-file-p tags))
-  (with-temp-buffer
-    (insert-file-contents-literally tags)
-    (goto-char (point-min))
-    (let ((reporter (make-progress-reporter
-                     (format "Building tags db for %s..."
-                             (file-name-nondirectory tags))
-                     (point-min) (point-max))))
-      ;; todo: How can we get the return type? `signature' in tags file
-      ;; does not contain the return type.
-      (while (re-search-forward
-              "^\\([^!\t]+\\)\t\\([^\t]+\\)\t\\(.*\\);\"\t.*$"
-              nil t)
-        (let (line name file cmd kind (lang "Others") signature
-                   class interface enum returntype)
-          (setq line (match-string-no-properties 0)
-                name (match-string-no-properties 1)
-                file (match-string-no-properties 2)
-                cmd (ac-ctags-trim-whitespace
-                     (ac-ctags-strip-cmd (match-string-no-properties 3))))
-          ;; If this line contains a language information, we get it.
-          (when (string-match "language:\\([^\t\n]+\\)" line)
-            (setq lang (match-string-no-properties 1 line)))
-          ;; If this line contains a signature, we get it.
-          (when (string-match "signature:\\([^\t\n]+\\)" line)
-            (setq signature (match-string-no-properties 1 line)))
-          (when (string-match "kind:\\([^\t\n]+\\)" line)
-            (setq kind (match-string-no-properties 1 line)))
-          (when (string-match "class:\\([^\t\n]+\\)" line)
-            (setq class (match-string-no-properties 1 line)))
-          (when (string-match "interface:\\([^\t\n]+\\)" line)
-            (setq interface (match-string-no-properties 1 line)))
-          (when (string-match "enum:\\([^\t\n]+\\)" line)
-            (setq enum (match-string-no-properties 1 line)))
-          (when (string-match "returntype:\\([^\t\n]+\\)" line)
-            (setq returntype (match-string-no-properties 1 line)))
-          (if (assoc lang tags-db)
-              (push `(,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype)
-                    (cdr (assoc lang tags-db)))
-            (push `(,lang (,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype))
-                  tags-db)))
-        (progress-reporter-update reporter (point)))
-      (progress-reporter-done reporter)))
-  tags-db)
+  (let ((db nil))
+    (with-temp-buffer
+      (insert-file-contents-literally tags)
+      (goto-char (point-min))
+      (let ((reporter (make-progress-reporter
+                       (format "Building tags db for %s..."
+                               (file-name-nondirectory tags))
+                       (point-min) (point-max))))
+        ;; todo: How can we get the return type? `signature' in tags file
+        ;; does not contain the return type.
+        (while (re-search-forward
+                "^\\([^!\t]+\\)\t\\([^\t]+\\)\t\\(.*\\);\"\t.*$"
+                nil t)
+          (let (line name file cmd kind (lang "Others") signature
+                     class interface enum returntype)
+            (setq line (match-string-no-properties 0)
+                  name (match-string-no-properties 1)
+                  file (match-string-no-properties 2)
+                  cmd (ac-ctags-trim-whitespace
+                       (ac-ctags-strip-cmd (match-string-no-properties 3))))
+            ;; If this line contains a language information, we get it.
+            (when (string-match "language:\\([^\t\n]+\\)" line)
+              (setq lang (match-string-no-properties 1 line)))
+            ;; If this line contains a signature, we get it.
+            (when (string-match "signature:\\([^\t\n]+\\)" line)
+              (setq signature (match-string-no-properties 1 line)))
+            (when (string-match "kind:\\([^\t\n]+\\)" line)
+              (setq kind (match-string-no-properties 1 line)))
+            (when (string-match "class:\\([^\t\n]+\\)" line)
+              (setq class (match-string-no-properties 1 line)))
+            (when (string-match "interface:\\([^\t\n]+\\)" line)
+              (setq interface (match-string-no-properties 1 line)))
+            (when (string-match "enum:\\([^\t\n]+\\)" line)
+              (setq enum (match-string-no-properties 1 line)))
+            (when (string-match "returntype:\\([^\t\n]+\\)" line)
+              (setq returntype (match-string-no-properties 1 line)))
+            (if (assoc lang db)
+                (push `(,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype)
+                      (cdr (assoc lang db)))
+              (push `(,lang (,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype))
+                    db)))
+          (progress-reporter-update reporter (point)))
+        (progress-reporter-done reporter)))
+    (ac-ctags-write-db-to-cache tags db)
+    (setq tags-db (ac-ctags-merge-db db tags-db))))
+
+(defun ac-ctags-write-db-to-cache (tags-file db)
+  "Write DB into cache."
+  (with-temp-file (ac-ctags-get-cache-file tags-file)
+    (let ((print-circle t))
+      (prin1 db (current-buffer)))))
+
+(defun ac-ctags-merge-db (db tags-db)
+  "Merge DB into TAGS-DB."
+  (loop for lang-db in db
+        for lang = (car lang-db)
+        do (if (assoc lang tags-db)
+               (mapcar (lambda (entry)
+                         (push entry (cdr (assoc lang tags-db))))
+                       lang-db)
+             (push lang-db tags-db))
+        finally (return tags-db)))
 
 (defun ac-ctags-tagsdb-needs-update-p (db-created-time)
   "Return t if DB-CRETED-TIME is older than any one of file
@@ -413,21 +465,14 @@ FROM-MODE and TO-MODE."
                                        (replace-regexp-in-string "\\$/$" "" str))))
     (replace-regexp-in-string ";$" "" ret)))
 
-;; todo: more accurate signatures are desirable.
-;; i.e. not `(double d)' but `void func(double d) const',
-;; but for now just return signature entry in tags prepended by name.
 (defun ac-ctags-get-signature (name db lang)
   "Return a list of signatures corresponding to NAME."
   (loop for e in (cdr (assoc lang db))
         ;; for each `(name cmd kind signature)'
         ;; linear searching is not what I want to use...
         when (and (string= name (ac-ctags-node-name e))
-                  (not (null (ac-ctags-node-signature e))))
-        collect (ac-ctags-construct-signature
-                 name
-                 (ac-ctags-node-command e)
-                 (ac-ctags-node-kind e)
-                 (ac-ctags-node-signature e))))
+                  (ac-ctags-node-signature e))
+        collect (ac-ctags-construct-signature e)))
 
 (defun ac-ctags-get-signature-by-mode (name db mode)
   "Return a list containing signatures corresponding `name'."
@@ -440,26 +485,15 @@ FROM-MODE and TO-MODE."
             (setq sigs (append siglst sigs))))))
     (sort sigs #'string<)))
 
-(defun ac-ctags-construct-signature (name cmd kind signature)
+(defun ac-ctags-construct-signature (node)
   "Construct a full signature if possible."
-  (when (ac-ctags-has-signature-p kind)
-    ;; The follwing should always match.
-    (if (string-match (regexp-quote (ac-ctags-strip-class-name name))
-                      cmd)
-        (let ((sig (concat (substring-no-properties cmd 0 (match-beginning 0))
-                           name
-                           signature)))
-          ;; Check to see if there is `throw' or `throws'.
-          (if (string-match (concat (regexp-quote (concat (ac-ctags-strip-class-name name)
-                                                          signature))
-                                    "\\([^{};]+\\)")
-                            cmd)
-              (ac-ctags-trim-whitespace
-               (concat sig
-                       " "
-                       (ac-ctags-trim-whitespace (match-string-no-properties 1 cmd))))
-            sig))
-      signature)))
+  ;; TODO
+  ;; deal with "throws" in cpp
+  ;; deal with "public" and so on in java
+  (concat (ac-ctags-node-returntype node)
+          (and (ac-ctags-node-returntype node) " ")
+          (ac-ctags-node-name node)
+          (ac-ctags-node-signature node)))
 
 (defun ac-ctags-has-signature-p (kind)
   (or (string= kind "function")
