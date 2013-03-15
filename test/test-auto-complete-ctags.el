@@ -18,6 +18,7 @@
 (defconst test-ac-ctags-c-tagsfile "c.ctags")
 (defconst test-ac-ctags-java-tagsfile-for-update "java.updated.ctags")
 (defconst test-ac-ctags-java-inf-tagsfile "inf.ctags")
+(defconst test-ac-ctags-qt-tags-file "qt.ctags")
 
 (defconst test-ac-ctags-node-length 9)
 
@@ -971,3 +972,30 @@ ctags."
       (equal '("SampleClass()" "SampleClass(int arg1, String arg2)")
              (mapcar #'substring-no-properties
                      (ac-ctags-java-collect-constructors "Samp")))))))
+
+(ert-deftest test-ac-ctags-split-list ()
+  (should
+   (equal '((1) (2) (3))
+          (ac-ctags-split-list '(1 2 3) 1)))
+  (should
+   (equal '((1 2) (3))
+          (ac-ctags-split-list '(1 2 3) 2)))
+  (should
+   (equal '((1))
+          (ac-ctags-split-list '(1) 1)))
+  (should
+   (equal '((1 2 3))
+          (ac-ctags-split-list '(1 2 3) 3)))
+  (should
+   (equal '((1 2 3))
+          (ac-ctags-split-list '(1 2 3) 4))))
+
+(ert-deftest test-ac-ctags-write-large-db-to-cache ()
+  (let ((tags-db (ac-ctags-build-tagsdb-from-tags test-ac-ctags-qt-tags-file nil))
+        (db-read nil))
+    (ac-ctags-write-db-to-cache test-ac-ctags-qt-tags-file
+                                tags-db)
+    (setq db-read
+          (ac-ctags-read-tagsdb-from-cache test-ac-ctags-qt-tags-file
+                                           nil))
+    (should (> (length (cdr (assoc "C++" db-read))) 1))))

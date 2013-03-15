@@ -123,6 +123,8 @@ example.
                   ac-source-ctags-java-field
                   ac-source-ctags-java-package))))
 
+(defvar ac-ctags-split-list-size 500)
+
 (defconst ac-ctags-no-document-message "No document available.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -225,20 +227,58 @@ current list."
 (defun ac-ctags-build-tagsdb (tags-list tags-db)
   "Build tagsdb from each element of TAGS-LIST."
   (dolist (e tags-list tags-db)
-    (setq tags-db (or (ac-ctags-read-tagsdb-from-cache e tags-db)
-                      (ac-ctags-build-tagsdb-from-tags e tags-db)))))
+    (if (ac-ctags-tags-file-updated-p e)
+        ;; if this tags file has been updated,
+        ;; we have to rebuild tagsdb for this tags file
+        (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))
+      ;; otherwise, read db from cache if it exists
+      (setq tags-db (or (ac-ctags-read-tagsdb-from-cache e tags-db)
+                        (ac-ctags-build-tagsdb-from-tags e tags-db))))))
+
+(defun ac-ctags-tags-file-updated-p (tags-file)
+  "Return t if cache file doesn't exist or the modified time of
+TAGS-FILE is newer than that of cache file."
+  (let ((cache-pathname (ac-ctags-get-cache-file tags-file))
+        (file-created-time (nth 5 (file-attributes (expand-file-name tags-file)))))
+    (or (not (file-exists-p cache-pathname))
+        (time-less-p (ac-ctags-get-cache-created-time cache-pathname)
+                     file-created-time))))
+
+(defun ac-ctags-get-cache-created-time (pathname)
+  "Return created time of this cache file PATHNAME."
+  (assert (file-exists-p pathname) "ac-ctags-get-cache-created-time")
+  (nth 5 (file-attributes pathname)))
 
 (defun ac-ctags-read-tagsdb-from-cache (tags-file tags-db)
-  "Read tagsdb from cache and merge it with TAGS-DB.
+  "Read tagsdb from cache and return merged TAGS-DB.
 Cache file, if exists, corresponds to one tags file"
   (when (ac-ctags-cache-file-exist-p tags-file)
     ;; read from cache and do merge.
-    (let ((db nil))
+    (let ((db nil)
+          (lang nil)
+          (obj nil)
+          (lst nil))
       (with-current-buffer (find-file-noselect
-                            (ac-ctags-get-cache-file tags-file))
+                            (ac-ctags-get-cache-file tags-file) t)
         (goto-char (point-min))
-        (setq db (read (current-buffer)))
+        (message "Reading db for %s from cache..." (file-name-nondirectory tags-file))
+        ;; suppress eof signal error from #'read
+        (while (and (not (eq :eof (setq obj (ignore-errors (read (current-buffer))))))
+                    (not (null obj)))
+          (cond
+           ((stringp obj)
+            (setq lang obj)
+            (unless (assoc lang db)
+              (push (list obj) db)))
+           ((listp obj)
+            (assert lang)
+            (mapcar (lambda (e)
+                      (push e (cdr (assoc lang db))))
+                    obj))
+           (t
+            (error "ac-ctags-read-tagsdb-from-cache"))))
         (kill-buffer))
+      (message "Reading db for %s from cache...done" (file-name-nondirectory tags-file))
       (setq tags-db (ac-ctags-merge-db db tags-db)))))
 
 (defun ac-ctags-cache-file-exist-p (tags-file)
@@ -313,7 +353,14 @@ TAGS is expected to be an absolute path name."
   "Write DB into cache."
   (with-temp-file (ac-ctags-get-cache-file tags-file)
     (let ((print-circle t))
-      (prin1 db (current-buffer)))))
+      (message "Writing db for %s to cache..." (file-name-nondirectory tags-file))
+      (loop for lang-alist in db
+            for lang = (car lang-alist)
+            for lang-db = (cdr lang-alist)
+            do (print lang (current-buffer))
+            do (loop for l in (ac-ctags-split-list lang-db ac-ctags-split-list-size)
+                     do (print l (current-buffer))))
+      (message "Writing db for %s to cache...done" (file-name-nondirectory tags-file)))))
 
 (defun ac-ctags-merge-db (db tags-db)
   "Merge DB into TAGS-DB."
@@ -525,6 +572,13 @@ FROM-MODE and TO-MODE."
 
 (defun ac-ctags-get-ac-sources-by-mode (mode)
   (cdr (assoc mode ac-ctags-ac-sources-alist)))
+
+(defun ac-ctags-split-list (lst n)
+  "Split LST by N elements."
+  (loop for l = lst then (nthcdr n l)
+        for len = (length l)
+        while l
+        collect (butlast l (- len n))))
 
 ;;;;;;;;;;;;;;;;;;;; ac-ctags-select-tags-list-mode ;;;;;;;;;;;;;;;;;;;;
 (require 'button)
