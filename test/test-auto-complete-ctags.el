@@ -1005,7 +1005,11 @@ ctags."
   (should
    (ac-ctags-cpp-line-has-typeinfo-p
     "var"
-    "SomeClass *foo_, *bar_, *var, *buzz_;")))
+    "SomeClass *foo_, *bar_, *var, *buzz_;"))
+  (should
+   (ac-ctags-cpp-line-has-typeinfo-p
+    "mainLayout_"
+    "mainLayout_ = new QHBoxLayout;")))
 
 (ert-deftest test-ac-ctags-cpp-extract-type-name ()
   (should
@@ -1032,6 +1036,11 @@ ctags."
             (ac-ctags-cpp-extract-type-name
              "std::vector<int> vec(10);"
              "vec")))
+  (should
+   (string= "QHBoxLayout"
+            (ac-ctags-cpp-extract-type-name
+             "mainLayout_ = new QHBoxLayout;"
+             "mainLayout_")))
   )
 
 (ert-deftest test-ac-ctags-cpp-get-function-return-type ()

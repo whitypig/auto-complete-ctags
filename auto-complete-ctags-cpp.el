@@ -32,12 +32,16 @@
                       "\\([[:alpha:]][[:alnum:]_ ,<>:*]+\\(::\\)?\\*?\\)+"
                       ))
         (exclude-regexp "return"))
-    (and (string-match-p (concat type-regexp
-                                 "[[:space:]*]+"
-                                 varname
-                                 "[,=;)[:space:]]"
-                                 )
-                         line)
+    (and (or (string-match-p (concat type-regexp
+                                     "[[:space:]*]+"
+                                     varname
+                                     "[,=;)[:space:]]"
+                                     )
+                             line)
+             (string-match-p (concat varname
+                                     "[ =]+"
+                                     "new")
+                             line))
          (not (string-match-p exclude-regexp line))
          (not (string-match-p "^[[:space:]]*//" line)))))
 
@@ -119,43 +123,46 @@
   "Extract a type of VARNAME from LINE and return it if found, or nil.
 Also we ignore primitive types such as int, double."
   (when (stringp line)
-    (loop with case-fold-search = nil
-          for ch in (nreverse (split-string
-                               (substring-no-properties line
-                                                        0
-                                                        (string-match
-                                                         (concat "[ ,]"
-                                                                 varname
-                                                                 "[,( ;=]")
-                                                         line))
-                               ""
-                               t))
-          with acc = nil
-          with stack = nil
-          with nparen = 0
-          with nangle-bracket = 0
-          if (string= ch ")")
-          do (incf nparen)
-          else if (string= ch "(")
-          do (decf nparen)
-          else if (string= ch ">")
-          do (progn (incf nangle-bracket)
-                    (push ch acc))
-          else if (string= ch "<")
-          do (progn (decf nangle-bracket)
-                    (push ch acc))
-          else if (or (string= ch " ") (string= ch ","))
-          do (cond
-              ((and (zerop nparen) (zerop nangle-bracket))
-               (when acc (push (reduce #'concat acc) stack))
-               (setq acc nil))
-              (t
-               (push ch acc)))
-          else
-          do (push ch acc)
-          finally (return (progn (when acc
-                                   (push (reduce #'concat acc) stack))
-                                 (car (ac-ctags-cpp-remove-keyword stack)))))))
+    (if (string-match (concat varname "[ ]*=[ ]*new[ ]*\\([^;()<> ]+\\)") line)
+        ;; case for "varname = new Class;"
+        (match-string-no-properties 1 line)
+      (loop with case-fold-search = nil
+            for ch in (nreverse (split-string
+                                 (substring-no-properties line
+                                                          0
+                                                          (string-match
+                                                           (concat "[ ,]"
+                                                                   varname
+                                                                   "[,( ;=]")
+                                                           line))
+                                 ""
+                                 t))
+            with acc = nil
+            with stack = nil
+            with nparen = 0
+            with nangle-bracket = 0
+            if (string= ch ")")
+            do (incf nparen)
+            else if (string= ch "(")
+            do (decf nparen)
+            else if (string= ch ">")
+            do (progn (incf nangle-bracket)
+                      (push ch acc))
+            else if (string= ch "<")
+            do (progn (decf nangle-bracket)
+                      (push ch acc))
+            else if (or (string= ch " ") (string= ch ","))
+            do (cond
+                ((and (zerop nparen) (zerop nangle-bracket))
+                 (when acc (push (reduce #'concat acc) stack))
+                 (setq acc nil))
+                (t
+                 (push ch acc)))
+            else
+            do (push ch acc)
+            finally (return (progn (when acc
+                                     (push (reduce #'concat acc) stack))
+                                   (car (ac-ctags-cpp-remove-keyword stack))))))))
 
 (defun ac-ctags-cpp-extract-variable-line (varname)
   "Return string which we has inferred has a typename of VARNAME."
