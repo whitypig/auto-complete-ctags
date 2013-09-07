@@ -305,17 +305,6 @@ functions of class CLASSNAME."
     (re-search-backward "\\(\\.\\|->\\)" (line-beginning-position) t)
     (match-end 1)))
 
-(ac-define-source ctags-cpp-member-functions
-  '((candidates . ac-ctags-cpp-member-function-candidates)
-    ;; commented out for debug purpose
-    ;(cache)
-    (candidate-face . ac-ctags-candidate-face)
-    (selection-face . ac-ctags-selection-face)
-    (requires . 0)
-    ;; prefix is either "." or "->"
-    (prefix . ac-ctags-cpp-member-function-prefix)
-    (action . ac-ctags-cpp-function-action)))
-
 (defun ac-ctags-cpp-get-members-by-scope-operator (class prefix)
   "Return a list of strings that begin with PREFIX and that are
 members in CLASS. CLASS is either classname or namespace. If
@@ -436,6 +425,18 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
       (when (stringp template)
         (delete-char (- (length signature)))
         (yas-expand-snippet template)))))
+
+;; Definitions of each ac-source for cpp
+(ac-define-source ctags-cpp-member-functions
+  '((candidates . ac-ctags-cpp-member-function-candidates)
+    ;; commented out for debug purpose
+    ;(cache)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 0)
+    ;; prefix is either "." or "->"
+    (prefix . ac-ctags-cpp-member-function-prefix)
+    (action . ac-ctags-cpp-function-action)))
 
 (ac-define-source ctags-cpp-scope-members
   '((candidates . ac-ctags-cpp-scope-member-candidates)
