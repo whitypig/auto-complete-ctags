@@ -426,6 +426,25 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
         (delete-char (- (length signature)))
         (yas-expand-snippet template)))))
 
+(defun ac-ctags-cpp-macro-candidates ()
+  ;; because this is the first implementation, i just return a list of
+  ;; macros found.
+  (loop with case-fold-search = nil
+        ;; we have to let nlimits customize variable.
+        with nlimits = 50
+        for node in (ac-ctags-get-lang-db "C++")
+        for name = (ac-ctags-node-name node)
+        for kind = (ac-ctags-node-kind node)
+        with candidates = nil
+        when (and (stringp kind)
+                  (string= kind "macro")
+                  (string-match (concat "^" ac-prefix)
+                                name))
+        collect name into candidates
+        finally (return (if (> (length candidates) nlimits)
+                            (nbutlast candidates nlimits)
+                          candidates))))
+
 ;; Definitions of each ac-source for cpp
 (ac-define-source ctags-cpp-member-functions
   '((candidates . ac-ctags-cpp-member-function-candidates)
@@ -448,6 +467,18 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
     (prefix . "::\\(.*\\)")
     (action . ac-ctags-cpp-function-action)
     ))
+
+(ac-define-source ctags-cpp-macro
+  '((candidates . ac-ctags-cpp-macro-candidates)
+    (candidate-face . ac-ctags-candidate-face)
+    (selection-face . ac-ctags-selection-face)
+    (requires . 2)))
+
+(defun ac-ctags-cpp-add-sources ()
+  (interactive)
+  (add-to-list 'ac-sources 'ac-source-ctags-cpp-member-functions)
+  (add-to-list 'ac-sources 'ac-source-ctags-cpp-scope-members)
+  (add-to-list 'ac-sources 'ac-source-ctags-cpp-macro))
 
 (provide 'auto-complete-ctags-cpp)
 ;;; auto-complete-ctags-cpp.el ends here
