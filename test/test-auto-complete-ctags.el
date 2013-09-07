@@ -20,6 +20,7 @@
 (defconst test-ac-ctags-java-tagsfile-for-update "java.updated.ctags")
 (defconst test-ac-ctags-java-inf-tagsfile "inf.ctags")
 (defconst test-ac-ctags-qt-tags-file "qt.ctags")
+(defconst test-ac-ctags-cpp-macro-and-ns-tagfile "test2.ctags")
 
 (defconst test-ac-ctags-node-length 10)
 
@@ -1217,3 +1218,14 @@ ctags."
 ;;           (ac-ctags-read-tagsdb-from-cache test-ac-ctags-qt-tags-file
 ;;                                            nil))
 ;;     (should (> (length (cdr (assoc "C++" db-read))) 1))))
+
+(ert-deftest test-ac-ctags-cpp-macro-candidates-1 ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-macro-and-ns-tagfile 'new)
+     (should
+      (= 2 (length (ac-ctags-cpp-macro-candidates-1 "MA"))))
+     (should
+      (equal '("MACRO1" "MACRO2")
+             (ac-ctags-cpp-macro-candidates-1 "MA")))
+     (should (null (ac-ctags-cpp-macro-candidates-1 "NonExist"))))))

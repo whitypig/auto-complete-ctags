@@ -315,9 +315,13 @@ PREFIX is nil or empty string, return all members of CLASS."
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         for classname = (ac-ctags-node-class node)
-        when (and (stringp classname)
-                  (string= classname class)
-                  (not (string-match-p "::" name))
+        for namespace = (ac-ctags-node-namespace node)
+        when (and (or (and (stringp classname)
+                           (string= classname class)
+                           (not (string-match-p "::" name)))
+                      (and (stringp namespace)
+                           (string= namespace class)
+                           (not (string-match-p "::" name))))
                   (or (null prefix)
                       (string= prefix "")
                       (string-match (concat "^" prefix) name)))
@@ -427,23 +431,25 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
         (yas-expand-snippet template)))))
 
 (defun ac-ctags-cpp-macro-candidates ()
-  ;; because this is the first implementation, i just return a list of
-  ;; macros found.
+  (ac-ctags-cpp-macro-candidates-1 ac-prefix))
+
+(defun ac-ctags-cpp-macro-candidates-1 (prefix)
+  "Return candidates as a list of strings which begin with PREFIX."
   (loop with case-fold-search = nil
-        ;; we have to let nlimits customize variable.
-        with nlimits = 50
+        with nlimits = ac-ctags-candidate-limit
         for node in (ac-ctags-get-lang-db "C++")
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         with candidates = nil
         when (and (stringp kind)
                   (string= kind "macro")
-                  (string-match (concat "^" ac-prefix)
+                  (string-match (concat "^" prefix)
                                 name))
         collect name into candidates
-        finally (return (if (> (length candidates) nlimits)
-                            (nbutlast candidates nlimits)
-                          candidates))))
+        finally (return (sort (if (> (length candidates) nlimits)
+                                  (nbutlast candidates nlimits)
+                                candidates)
+                              #'string<))))
 
 ;; Definitions of each ac-source for cpp
 (ac-define-source ctags-cpp-member-functions
