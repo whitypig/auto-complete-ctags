@@ -541,6 +541,7 @@ ctags."
                                      "Java"))))))
 
 ;; fail
+;; we have to decide whether we include access keyword in method signature.
 (ert-deftest test-ac-ctags-java-document ()
   (test-ac-ctags-fixture
    (lambda ()
