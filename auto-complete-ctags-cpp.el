@@ -24,6 +24,7 @@
 
 ;;; Code:
 (require 'auto-complete-ctags)
+(require 'cl)
 
 (defun ac-ctags-cpp-line-has-typeinfo-p (varname line)
   "Return t if this LINE contains type name, or nil."

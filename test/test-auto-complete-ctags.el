@@ -714,7 +714,7 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
-       '("CONSTANT" "_intField" "_strField")
+       '("CONSTANT" "_intField" "_strField" "_strMap")
        (ac-ctags-java-collect-fields-in-class "SampleClass"))))))
 
 (ert-deftest test-ac-ctags-java-field-candidates-1 ()
@@ -762,6 +762,14 @@ ctags."
     (should
      (null (get-text-property 0 'view (ac-ctags-java-make-field-candidate no-type-node))))
     ))
+
+(ert-deftest test-ac-ctags-java-collect-enums ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
+     (should
+      (equal '("BIDDING" "JOINING" "LOSING" "LOST" "WINNING" "WON")
+             (ac-ctags-java-collect-enums "SniperState"))))))
 
 (ert-deftest test-ac-ctags-java-parse-field-node ()
   (should

@@ -194,6 +194,9 @@ Signature property is used to construct yasnippet template."
                             str-before-dot)
               ;; this is a method name
               (ac-ctags-java-get-method-return-type identifier))
+             ((string-match "^[A-Z][A-Za-z0-9_]+$" identifier)
+              ;; case for "ClassName."
+              identifier)
              (t
               ;; this is a variable name
               (ac-ctags-java-extract-class-name
@@ -343,7 +346,7 @@ If STRING is method1(method2(), return method2."
   (let ((case-fold-search nil)
         (line (buffer-substring-no-properties (line-beginning-position)
                                               (line-end-position))))
-    (when (string-match "[ \t(]\\([A-Z][A-Za-z0-9_]+\\)\\.[A-Za-z0-9_]*" line)
+    (when (string-match "[ \t(.]\\([A-Z][A-Za-z0-9_]+\\)\\.[A-Za-z0-9_]*" line)
       (ac-ctags-java-enum-candidates-1 (match-string-no-properties 1 line)
                                        ac-prefix))))
 
@@ -361,8 +364,8 @@ If STRING is method1(method2(), return method2."
         with ret = nil
         for kind = (ac-ctags-node-kind lst)
         for enum = (ac-ctags-node-enum lst)
-        when (and enum
-                  kind
+        when (and (stringp enum)
+                  (stringp kind)
                   (or (string= enum enum-typename)
                       (string-match (concat "\\." enum-typename "$") enum))
                   (string= "enum constant" kind))
@@ -387,7 +390,7 @@ If STRING is method1(method2(), return method2."
                                #'string<))))
 
 (defun ac-ctags-java-collect-classes-in-package (package)
-  "Return a list of class names in package PACKAGE."
+  "Return a list of class, interface, and enum names in package PACKAGE."
   (loop with case-fold-search = nil
         for lst in (ac-ctags-get-lang-db "Java")
         for kind = (ac-ctags-node-kind lst)
@@ -395,7 +398,9 @@ If STRING is method1(method2(), return method2."
         for file = (ac-ctags-node-file lst)
         when (and (stringp kind)
                   (stringp name)
-                  (string= kind "class")
+                  (or (string= kind "class")
+                      (string= kind "interface")
+                      (string= kind "enum"))
                   (string-match (concat
                                  (replace-regexp-in-string "\\." "/" package)
                                  "/"
@@ -511,7 +516,7 @@ If STRING is method1(method2(), return method2."
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
-    (prefix . "[ \t(][A-Z][A-Za-z0-9_]+\\.\\([A-Za-z0-9_]*\\)")))
+    (prefix . "\\.\\(.*\\)")))
 
 (ac-define-source ctags-java-field
   '((candidates . ac-ctags-java-field-candidates)
