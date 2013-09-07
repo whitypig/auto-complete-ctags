@@ -13,7 +13,7 @@
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.ctags")
 (defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
 (defconst test-ac-ctags-cpp-tagsfile2 "test_with_q.ctags")
-(defconst test-ac-ctags-java-tagsfile "java.tags")
+(defconst test-ac-ctags-java-tagsfile "java.new.tags")
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
 (defconst test-ac-ctags-java-goos-tagfile "goos.ctags")
 (defconst test-ac-ctags-c-tagsfile "c.ctags")
@@ -21,7 +21,7 @@
 (defconst test-ac-ctags-java-inf-tagsfile "inf.ctags")
 (defconst test-ac-ctags-qt-tags-file "qt.ctags")
 
-(defconst test-ac-ctags-node-length 9)
+(defconst test-ac-ctags-node-length 10)
 
 (defun test-ac-ctags-fixture (body)
   (let ((ac-ctags-current-major-mode nil)
@@ -265,7 +265,7 @@ ctags."
                     (ac-ctags-get-signature "normal_func" ac-ctags-tags-db "C++")))
      (should
       (null (ac-ctags-get-signature "TestClass::normal_func" ac-ctags-tags-db "C++")))
-     (should (equal '("void overloaded_func(int i)" "void overloaded_func(double d)")
+     (should (equal '("void overloaded_func(double d)" "void overloaded_func(int i)" )
                     (ac-ctags-get-signature "overloaded_func" ac-ctags-tags-db "C++")))
      ;;(should (equal '("void risky_func() throw (int)")
                     (ac-ctags-get-signature "risky_func" ac-ctags-tags-db "C++")))
@@ -278,8 +278,8 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-valid-gtest-tagfile 'new)
      (should
-      (equal '("void InitGoogleTest(int* argc, wchar_t** argv)"
-               "void InitGoogleTest(int* argc, char** argv)")
+      (equal '("void InitGoogleTest(int* argc, char** argv)"
+               "void InitGoogleTest(int* argc, wchar_t** argv)")
              (ac-ctags-get-signature "InitGoogleTest" ac-ctags-tags-db "C++")))
      (should
       (null (ac-ctags-get-signature "EXPECT_EQ"
@@ -354,7 +354,7 @@ ctags."
                    ac-ctags-tags-list-set))))
 
 (ert-deftest test-ac-ctags-visit-tags-file:try-to-insert-the-same-tags ()
-    ;; Try to insert a tags into a new list.  Try to crate a new list,
+    ;; Try to insert a tags into a new list. Try to crate a new list,
     ;; but the elements are the same as those of
     ;; ac-ctags-current-tags-list, so actually does not create a new
     ;; list even if the answer to the create-a-new-list question is
@@ -431,8 +431,8 @@ ctags."
 
 (defun* test-ac-ctags-make-node (&key (name nil) (file nil) (cmd nil) (kind nil)
                                       (class nil) (interface nil) (signature nil)
-                                      (enum nil) (returntype nil))
-  (list name file cmd kind class interface signature enum returntype))
+                                      (enum nil) (returntype nil) (namespace nil))
+  (list name file cmd kind class interface signature enum returntype namespace))
 
 (ert-deftest test-ac-ctags-construct-signature ()
   (test-ac-ctags-fixture
@@ -507,7 +507,7 @@ ctags."
 
 ;; node => (name cmd kind signature)
 (ert-deftest test-ac-ctags-node-access ()
-  (let ((node '("name" "file" "cmd" "kind" "class" "interface" "signature" "enum" "returntype")))
+  (let ((node '("name" "file" "cmd" "kind" "class" "interface" "signature" "enum" "returntype" "namespace")))
     (should (string= "name"
                      (ac-ctags-node-name node)))
     (should (string= "cmd"
@@ -522,11 +522,14 @@ ctags."
                      (ac-ctags-node-enum node)))
     (should (string= "returntype"
                      (ac-ctags-node-returntype node)))
+    (should (string= "namespace"
+                     (ac-ctags-node-namespace node)))
     (should (null
              (ac-ctags-node-kind '("name" nil "cmd" nil "class" "interface" "signature"))))
     (should (null
              (ac-ctags-node-signature '("name" nil "cmd" nil "class" "interface" nil))))))
 
+;; this test should fail for now
 (ert-deftest test-ac-ctags-get-signature:java ()
   (test-ac-ctags-fixture
    (lambda ()
@@ -537,6 +540,7 @@ ctags."
                                      ac-ctags-tags-db
                                      "Java"))))))
 
+;; fail
 (ert-deftest test-ac-ctags-java-document ()
   (test-ac-ctags-fixture
    (lambda ()
@@ -585,7 +589,7 @@ ctags."
        ;; method name
        (should (string= "helloAnotherWorld()" (substring-no-properties cand)))
        ;; and view property
-       (should (string= "helloAnotherWorld()             :int - SampleClass"
+       (should (string= "helloAnotherWorld()   :int - SampleClass"
                         prop))
        ))))
 
@@ -615,12 +619,15 @@ ctags."
                (ac-ctags-java-collect-methods-in-class "SomeInterface")))))))
 
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
-  (let ((node1 '("method" "cmd" "method" "SomeClass" nil "()" nil "int"))
-        (node2 '("anotherMethod" "cmd" "method" "SomeClass" nil "(int i, String s)" nil "void"))
-        (node-ctor '("SampleClass" "cmd" "method" "SampleClass" nil "()" nil nil)))
+  (let ((node1 (test-ac-ctags-make-node :name "method" :kind "method" :class "SomeClass"
+                                        :signature "()" :returntype "int"))
+        (node2 (test-ac-ctags-make-node :name "anotherMethod" :kind "method" :class "SomeClass"
+                                        :signature "(int i, String s)" :returntype "void"))
+        (node-ctor (test-ac-ctags-make-node :name "SampleClass" :kind "method" :class "SampleClass"
+                                            :signature "()")))
     (should
      (string= "method()"
-              (ac-ctags-java-make-method-candidate node1)))
+              (substring-no-properties (ac-ctags-java-make-method-candidate node1))))
     (should
      (string= "method()                :int - SomeClass"
               (get-text-property 0 'view (ac-ctags-java-make-method-candidate node1))))
@@ -737,26 +744,27 @@ ctags."
      )))
 
 (ert-deftest test-ac-ctags-java-make-field-candidate ()
-  (let ((node1 '("_strField" "/^  private String _strField;$/;\""
-                 "field" "SomeClass" nil nil nil))
-        (node2 '("_strMap" "/^  private Map<String, String> _strMap;$/;\""
-                 "field" "SampleClass" nil nil nil))
-        (no-type-node
-         '("_strMap" "/^  private _strMap;$/;\""
-           "field" "SampleClass" nil nil nil)))
+  (let ((node1 (test-ac-ctags-make-node :name "_strField" :cmd "/^  private String _strField;$/;\""
+                                        :kind "field" :class "SomeClass"))
+        (node2 (test-ac-ctags-make-node :name "_strMap"
+                                        :cmd "/^  private Map<String, String> _strMap;$/;\""
+                                        :kind "field" :class "SomeClass"))
+        (no-type-node (test-ac-ctags-make-node :name "_strMap"
+                                               :cmd "/^  private _strMap;$/;\""
+                                               :kind "field" :class "SomeClass")))
     (should
      (string= "_strField"
               (ac-ctags-java-make-field-candidate node1)))
     (should
-     (string= "_strField                                  :String"
+     (string= "_strField                        :String"
               (get-text-property 0 'view (ac-ctags-java-make-field-candidate node1))))
     (should
      (string= "_strMap"
               (ac-ctags-java-make-field-candidate node2)))
     (should
-     (string= "_strMap                       :Map<String, String>"
+     (string= "_strMap             :Map<String, String>"
               (get-text-property 0 'view (ac-ctags-java-make-field-candidate node2))))
-        (should
+    (should
      (string= "_strMap"
               (ac-ctags-java-make-field-candidate no-type-node)))
     (should
@@ -775,22 +783,29 @@ ctags."
   (should
    (string= "String"
             (ac-ctags-java-parse-field-node
-             '("_strField" "/^  private String _strField;$/;\""
-               "field" "SomeClass" nil nil nil))))
+             (test-ac-ctags-make-node :name "_strField" :cmd "/^  private String _strField;$/;\""
+                                        :kind "field" :class "SomeClass"))))
   (should
    (string= "Map<String, String>"
             (ac-ctags-java-parse-field-node
-             '("_strMap" "/^  protected Map<String, String> _strMap;$/;\""
-               "field" "SampleClass" nil nil nil))))
+             (test-ac-ctags-make-node :name "_strMap"
+                                      :cmd "/^  protected Map<String, String> _strMap;$/;\""
+                                      :kind "field"
+                                      :class "SampleClass"))))
   (should
    (string= "int"
             (ac-ctags-java-parse-field-node
-             '("CONSTANT" "/^  public static final int CONSTANT;$/;\""
-               "field" "SampleClass" nil nil nil))))
+             (test-ac-ctags-make-node :name "CONSTANT"
+                                      :cmd "/^  public static final int CONSTANT;$/;\""
+                                      :kind "field"
+                                      :class "SampleClass"))))
   (should
    (null (ac-ctags-java-parse-field-node
-          '("CONSTANT" "/^  CONSTANT;$/;\""
-               "field" "SampleClass" nil nil nil)))))
+          (test-ac-ctags-make-node :name "CONSTANT"
+                                   :cmd "/^  CONSTANT;$/;\""
+                                   :kind "field"
+                                   :class "SampleClass"))))
+  )
 
 (ert-deftest test-ac-ctags-make-signature ()
   (should (string= "(int, int)"
@@ -834,7 +849,10 @@ ctags."
 
 (ert-deftest test-ac-ctags-get-ac-sources-by-mode ()
   (should
-   (equal '(ac-source-ctags-java-method)
+   (equal '(ac-source-ctags-java-method
+            ac-source-ctags-java-enum
+            ac-source-ctags-java-field
+            ac-source-ctags-java-package)
           (ac-ctags-get-ac-sources-by-mode 'java-mode))))
 
 (ert-deftest test-ac-ctags-candidates-1 ()
@@ -1098,7 +1116,7 @@ ctags."
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'new)
      (should
-      (equal '("get()")
+      (equal '("get()" "getInstance()" "getObj()" "getObj2()")
              (mapcar #'substring-no-properties
                      (ac-ctags-cpp-get-members-by-scope-operator "TestClass" "ge"))))
      (should
@@ -1188,12 +1206,13 @@ ctags."
    (equal '((1 2 3))
           (ac-ctags-split-list '(1 2 3) 4))))
 
-(ert-deftest test-ac-ctags-write-large-db-to-cache ()
-  (let ((tags-db (ac-ctags-build-tagsdb-from-tags test-ac-ctags-qt-tags-file nil))
-        (db-read nil))
-    (ac-ctags-write-db-to-cache test-ac-ctags-qt-tags-file
-                                tags-db)
-    (setq db-read
-          (ac-ctags-read-tagsdb-from-cache test-ac-ctags-qt-tags-file
-                                           nil))
-    (should (> (length (cdr (assoc "C++" db-read))) 1))))
+;; this test takes long...
+;; (ert-deftest test-ac-ctags-write-large-db-to-cache ()
+;;   (let ((tags-db (ac-ctags-build-tagsdb-from-tags test-ac-ctags-qt-tags-file nil))
+;;         (db-read nil))
+;;     (ac-ctags-write-db-to-cache test-ac-ctags-qt-tags-file
+;;                                 tags-db)
+;;     (setq db-read
+;;           (ac-ctags-read-tagsdb-from-cache test-ac-ctags-qt-tags-file
+;;                                            nil))
+;;     (should (> (length (cdr (assoc "C++" db-read))) 1))))
