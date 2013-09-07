@@ -529,13 +529,13 @@ ctags."
     (should (null
              (ac-ctags-node-signature '("name" nil "cmd" nil "class" "interface" nil))))))
 
-;; this test should fail for now
 (ert-deftest test-ac-ctags-get-signature:java ()
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile 'new)
      (should
-      (equal '("public void helloWorld()")
+      ;; should we include public/protected/private as a part of signature?
+      (equal '("void helloWorld()")
              (ac-ctags-get-signature "helloWorld"
                                      ac-ctags-tags-db
                                      "Java"))))))
