@@ -1144,7 +1144,13 @@ ctags."
   (should
    (string=
     "map"
-    (ac-ctags-cpp-parse-before-scope-operator-1 "std::map<std::vector<int>, std::string>"))))
+    (ac-ctags-cpp-parse-before-scope-operator-1 "std::map<std::vector<int>, std::string>")))
+  (should
+   (string= "testing"
+            (ac-ctags-cpp-parse-before-scope-operator-1 "::testing")))
+  (should
+   (string= "SomeClass"
+            (ac-ctags-cpp-parse-before-scope-operator-1 "mynamespace::SomeClass"))))
 
 (ert-deftest test-ac-ctags-cpp-strip-angle-brackets ()
   (should
@@ -1229,3 +1235,11 @@ ctags."
       (equal '("MACRO1" "MACRO2")
              (ac-ctags-cpp-macro-candidates-1 "MA")))
      (should (null (ac-ctags-cpp-macro-candidates-1 "NonExist"))))))
+
+(ert-deftest test-ac-ctags-add-another-tags-in-the-current-list ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
+     ;; add another tag file into the current list and
+     ;; check if there is errors
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2))))

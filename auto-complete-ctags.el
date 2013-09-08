@@ -317,7 +317,7 @@ TAGS is expected to be an absolute path name."
                 "^\\([^!\t]+\\)\t\\([^\t]+\\)\t\\(.*\\);\"\t.*$"
                 nil t)
           (let (line name file cmd kind (lang "Others") signature
-                     class interface enum returntype)
+                     class interface enum returntype namespace)
             (setq line (match-string-no-properties 0)
                   name (match-string-no-properties 1)
                   file (match-string-no-properties 2)
@@ -339,10 +339,12 @@ TAGS is expected to be an absolute path name."
               (setq enum (match-string-no-properties 1 line)))
             (when (string-match "returntype:\\([^\t\n]+\\)" line)
               (setq returntype (match-string-no-properties 1 line)))
+            (when (string-match "namespace:[:]?\\([^\t\n]+\\)" line)
+              (setq namespace (match-string-no-properties 1 line)))
             (if (assoc lang db)
-                (push `(,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype)
+                (push `(,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype ,namespace)
                       (cdr (assoc lang db)))
-              (push `(,lang (,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype))
+              (push `(,lang (,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype ,namespace))
                     db)))
           (progress-reporter-update reporter (point)))
         (progress-reporter-done reporter)))
@@ -369,7 +371,7 @@ TAGS is expected to be an absolute path name."
         do (if (assoc lang tags-db)
                (mapcar (lambda (entry)
                          (push entry (cdr (assoc lang tags-db))))
-                       lang-db)
+                       (cdr lang-db))
              (push lang-db tags-db))
         finally (return tags-db)))
 
@@ -450,6 +452,9 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
 
 (defun ac-ctags-node-returntype (node)
   (nth 8 node))
+
+(defun ac-ctags-node-namespace (node)
+  (nth 9 node))
 
 ;; ("C++" (name command signature)...)
 (defun ac-ctags-build-completion-table (tags-db)

@@ -316,16 +316,28 @@ PREFIX is nil or empty string, return all members of CLASS."
         for kind = (ac-ctags-node-kind node)
         for classname = (ac-ctags-node-class node)
         for namespace = (ac-ctags-node-namespace node)
-        when (and (or (and (stringp classname)
-                           (string= classname class)
-                           (not (string-match-p "::" name)))
-                      (and (stringp namespace)
-                           (string= namespace class)
-                           (not (string-match-p "::" name))))
+        with nlimits = ac-ctags-candidate-limit
+        with candidates = nil
+        with count = 0
+        when (and (or
+                   ;; case for "::foo"
+                   (or (null class) (string= "" class))
+                   ;; check classname
+                   (and (stringp classname)
+                        (string= classname class)
+                        (not (string-match-p "::" name)))
+                   ;; check namespace
+                   (and (stringp namespace)
+                        (string-match (concat class "$") namespace)
+                        (not (string-match-p "::" name))))
                   (or (null prefix)
                       (string= prefix "")
                       (string-match (concat "^" prefix) name)))
-        collect (ac-ctags-cpp-make-candidate node)))
+        do (progn (push (ac-ctags-cpp-make-candidate node) candidates)
+                  (incf count)
+                  (when (>= count nlimits)
+                    (return (sort candidates #'string<))))
+        finally (return (sort candidates #'string<))))
 
 (defun ac-ctags-cpp-make-candidate (node)
   (let ((kind (ac-ctags-node-kind node))
