@@ -667,7 +667,7 @@ FROM-MODE and TO-MODE."
 
 (defun ac-ctags-update ()
   "Use this command to update tags db, completion tables and so
-on when you updated tags file."
+on when you have updated tags file."
   (interactive)
   (ac-ctags-build-1 nil ac-ctags-current-tags-list))
 
