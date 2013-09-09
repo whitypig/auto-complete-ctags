@@ -665,6 +665,12 @@ FROM-MODE and TO-MODE."
   (quit-window t (selected-window))
   (set-window-configuration ac-ctags-window-conf))
 
+(defun ac-ctags-update ()
+  "Use this command to update tags db, completion tables and so
+on when you updated tags file."
+  (interactive)
+  (ac-ctags-build-1 nil ac-ctags-current-tags-list))
+
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
