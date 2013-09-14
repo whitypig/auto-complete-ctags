@@ -132,7 +132,7 @@
   "Extract a type of VARNAME from LINE and return it if found, or nil.
 Also we ignore primitive types such as int, double."
   (when (stringp line)
-    (if (string-match (concat varname "[ ]*=[ ]*new[ ]*\\([^;()<> ]+\\)") line)
+    (if (string-match (concat varname "[ ]*=[ ]*new[ ]+\\([^;()<> ]+\\)") line)
         ;; case for "varname = new Class;"
         (match-string-no-properties 1 line)
       (loop with case-fold-search = nil
