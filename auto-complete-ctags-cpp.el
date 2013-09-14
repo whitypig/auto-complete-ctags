@@ -29,15 +29,23 @@
 (defun ac-ctags-cpp-line-has-typeinfo-p (varname line)
   "Return t if this LINE contains type name, or nil."
   (let ((case-fold-search nil)
-        (type-regexp (concat
-                      "\\([[:alpha:]][[:alnum:]_ ,<>:*]+\\(::\\)?\\*?\\)+"
-                      ))
+        (type-regexp1 (concat
+                      "\\([[:alnum:]<>_, ]+::\\)+" ; namespace
+                      "[[:alnum:]<>_, ]+" ; classname
+                      "[[:space:]]*[&*]*[[:space:]]*[&*]*"))
+        (type-regexp2 (concat
+                       "\\([[:alnum:]<>_]+\\)" ; classname
+                       "[[:space:]]*[^;\n]+[&*]*[[:space:]]*[&*]*"))
         (exclude-regexp "return"))
-    (and (or (string-match-p (concat type-regexp
-                                     "[[:space:]*]+"
+    (and (or (string-match-p (concat type-regexp1
+                                     ;"[[:space:]*]+"
                                      varname
                                      "[,=;)[:space:]]"
                                      )
+                             line)
+             (string-match-p (concat type-regexp2
+                                     varname
+                                     "[,=;)[:space:]]")
                              line)
              (string-match-p (concat varname
                                      "[ =]+"
@@ -301,9 +309,19 @@ functions of class CLASSNAME."
     (ac-ctags-trim-whitespace ret)))
 
 (defun ac-ctags-cpp-member-function-prefix ()
-  (save-excursion
-    (re-search-backward "\\(\\.\\|->\\)" (line-beginning-position) t)
-    (match-end 1)))
+  (let ((ch1 (char-before))
+        (ch2 (char-before (1- (point)))))
+    (when (characterp ch1)
+      (cond
+       ((char-equal ch1 ?.)
+        (point))
+       ((char-equal ch1 ?>)
+        (when (and (characterp ch2)
+                   (char-equal ch2 ?-))
+          ;; ->
+          (point)))
+       (t
+        nil)))))
 
 (defun ac-ctags-cpp-get-members-by-scope-operator (class prefix)
   "Return a list of strings that begin with PREFIX and that are

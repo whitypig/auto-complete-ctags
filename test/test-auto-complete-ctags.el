@@ -1037,7 +1037,12 @@ ctags."
   (should
    (ac-ctags-cpp-line-has-typeinfo-p
     "mainLayout_"
-    "mainLayout_ = new QHBoxLayout;")))
+    "mainLayout_ = new QHBoxLayout;"))
+  (should
+   (ac-ctags-cpp-line-has-typeinfo-p
+    "original"
+    "studentCollection::studentCollection(const studentCollection& original)"))
+  )
 
 (ert-deftest test-ac-ctags-cpp-extract-type-name ()
   (should
