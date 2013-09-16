@@ -137,29 +137,24 @@ Also we ignore primitive types such as int, double."
         (match-string-no-properties 1 line)
       (loop with case-fold-search = nil
             for ch in (nreverse (split-string
-                                 (substring-no-properties line
-                                                          0
-                                                          (string-match
-                                                           (concat "[ ,]"
-                                                                   varname
-                                                                   "[,( ;=]")
-                                                           line))
+                                 (ac-ctags-cpp-extract-type-name-1 line varname)
                                  ""
                                  t))
             with acc = nil
             with stack = nil
             with nparen = 0
             with nangle-bracket = 0
-            if (string= ch ")")
-            do (incf nparen)
-            else if (string= ch "(")
-            do (decf nparen)
-            else if (string= ch ">")
+            if (string= ch ">")
             do (progn (incf nangle-bracket)
                       (push ch acc))
             else if (string= ch "<")
             do (progn (decf nangle-bracket)
                       (push ch acc))
+            else if (string= ch "-")
+            do (when (and (stringp (car acc)) (string= (car acc) ">"))
+                 ;; the previous angle bracket is for arrow operator
+                 (decf nangle-bracket)
+                 (push ch acc))
             else if (or (string= ch " ") (string= ch ","))
             do (cond
                 ((and (zerop nparen) (zerop nangle-bracket))
@@ -167,11 +162,28 @@ Also we ignore primitive types such as int, double."
                  (setq acc nil))
                 (t
                  (push ch acc)))
-            else
+            else if (not (member ch '("(" ")")))
             do (push ch acc)
             finally (return (progn (when acc
                                      (push (reduce #'concat acc) stack))
-                                   (car (ac-ctags-cpp-remove-keyword stack))))))))
+                                   (ac-ctags-cpp-strip-aster-and-amp
+                                    (car (ac-ctags-cpp-remove-keyword stack)))))))))
+
+(defun ac-ctags-cpp-extract-type-name-1 (line varname)
+  "Return neccessary part of string in LINE to determine type of VARNAME."
+  (let ((ln (ac-ctags-trim-whitespace line)))
+    (cond
+     ((string-match (concat "(""\\([^()]+" varname "\\))") line)
+      (match-string-no-properties 1 line))
+     (t
+      line))))
+
+(defun ac-ctags-cpp-strip-aster-and-amp (s)
+  "Remove leading and trailinig asterisks or ampersands"
+  (replace-regexp-in-string "[*&]+$"
+                            ""
+                            (replace-regexp-in-string "^[*&]+" "" s)))
+
 
 (defun ac-ctags-cpp-extract-variable-line (varname)
   "Return string which we has inferred has a typename of VARNAME."
@@ -255,7 +267,9 @@ Also we ignore primitive types such as int, double."
     (remove-if (lambda (s)
                  (string-match (concat "^\\("
                                        "const\\|"
-                                       "return"
+                                       "return\\|"
+                                       "for\\|"
+                                       "if\\|"
                                        "\\)$")
                                s))
                lst)))
@@ -279,8 +293,9 @@ Also we ignore primitive types such as int, double."
         collect (ac-ctags-cpp-make-function-candidate node)))
 
 (defun ac-ctags-cpp-member-function-candidates ()
-  (ac-ctags-cpp-member-function-candidates-1
-   (ac-ctags-cpp-determine-type-name) ac-prefix))
+  (let ((type (ac-ctags-cpp-determine-type-name)))
+    (message "DEBUG: type=%s" type)
+    (ac-ctags-cpp-member-function-candidates-1 type ac-prefix)))
 
 (defun ac-ctags-cpp-member-function-candidates-1 (classname prefix)
   "Return candidates that begin with PREFIX and that are member
@@ -321,7 +336,9 @@ functions of class CLASSNAME."
           ;; ->
           (point)))
        (t
-        nil)))))
+        (when (save-excursion
+                (re-search-backward "\\(\\.\\|->\\)" nil (line-beginning-position)))
+          (match-end 1)))))))
 
 (defun ac-ctags-cpp-get-members-by-scope-operator (class prefix)
   "Return a list of strings that begin with PREFIX and that are
@@ -428,7 +445,12 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
 (defun ac-ctags-cpp-parse-before-scope-operator-1 (string)
   (loop named this-func
         with case-fold-search = nil
-        with lst = (nreverse (split-string string "" t))
+        with lst = (nreverse
+                    (split-string
+                     (reduce #'concat (ac-ctags-cpp-remove-keyword
+                                       (split-string string " " t)))
+                     ""
+                     t))
         with len = (length lst)
         for ch in lst
         for i from 0

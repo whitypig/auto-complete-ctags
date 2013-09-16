@@ -1074,7 +1074,23 @@ ctags."
             (ac-ctags-cpp-extract-type-name
              "mainLayout_ = new QHBoxLayout;"
              "mainLayout_")))
+  (should
+   (string= "studentNode"
+            (ac-ctags-cpp-extract-type-name
+             "  studentNode *from = original->next, *to = newlist;"
+             "to")))
+  (should
+   (string= "studentCollection"
+            (ac-ctags-cpp-extract-type-name
+             "studentCollection::studentCollection(const studentCollection& original)"
+             "original")))
   )
+
+(ert-deftest test-ac-ctags-cpp-strip-aster-and-amp ()
+  (should
+   (string= "Type" (ac-ctags-cpp-strip-aster-and-amp "Type*")))
+  (should
+   (string= "Type" (ac-ctags-cpp-strip-aster-and-amp "Type**&"))))
 
 (ert-deftest test-ac-ctags-cpp-get-function-return-type ()
   (test-ac-ctags-fixture
@@ -1155,7 +1171,10 @@ ctags."
             (ac-ctags-cpp-parse-before-scope-operator-1 "::testing")))
   (should
    (string= "SomeClass"
-            (ac-ctags-cpp-parse-before-scope-operator-1 "mynamespace::SomeClass"))))
+            (ac-ctags-cpp-parse-before-scope-operator-1 "mynamespace::SomeClass")))
+  (should
+   (string= "std"
+            (ac-ctags-cpp-parse-before-scope-operator-1 "return std"))))
 
 (ert-deftest test-ac-ctags-cpp-strip-angle-brackets ()
   (should
