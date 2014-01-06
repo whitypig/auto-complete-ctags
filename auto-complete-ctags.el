@@ -215,7 +215,7 @@ current list."
 
 (defun ac-ctags-is-valid-tags-file-p (tags)
   "Return t if TAGS is valid tags file created by exuberant
-  ctags."
+ctags."
   (let ((fullpath (and tags (file-exists-p tags) (expand-file-name tags)))
         (needle "!_TAG_PROGRAM_NAME	Exuberant Ctags"))
     (when fullpath
@@ -682,14 +682,52 @@ on when you have updated tags file."
   (ac-ctags-update-current-completion-table major-mode)
   (when (stringp prefix)
     (setq candidates
-          (sort (all-completions prefix ac-ctags-current-completion-table)
-                #'string<))
+          (sort (ac-ctags-collect-candidates prefix)
+                #'string<)
+          ;; (sort (all-completions prefix ac-ctags-current-completion-table)
+          ;;       #'string<)
+          )
     (let ((len (length candidates)))
       (if (and candidates
                (numberp ac-ctags-candidate-limit)
                (> len ac-ctags-candidate-limit))
           (nbutlast candidates (- len ac-ctags-candidate-limit))
         candidates))))
+
+(defun ac-ctags-collect-candidates (prefix)
+  "Collect candidates which begin with PREFIX.
+Also, if a candidate is of type functin or prototype and has a
+signature, make a candidate with its signature as well as
+yasnippet template if possible."
+  (loop for node in (ac-ctags-get-lang-db
+                     (car (ac-ctags-get-mode-string major-mode)))
+        for name = (ac-ctags-node-name node)
+        for kind = (ac-ctags-node-kind node)
+        when (string-match (concat "^" prefix) name)
+        collect (if (member kind '("function" "prototype"))
+                    (ac-ctags-make-function-candidate node)
+                  name)))
+
+(defun ac-ctags-make-function-candidate (node)
+  "Make function candidates with its signature and return type
+being properly concatenated."
+  (let* ((raw-signature (ac-ctags-node-signature node))
+         (signature (when (stringp raw-signature)
+                      (if (string-match "void" raw-signature)
+                          ;; If signature is "(void)", we use "()"
+                          ;; because they are calling this function,
+                          ;; not declearing or defining one.
+                          "()"
+                        raw-signature)))
+         (ret (concat (ac-ctags-node-name node) signature))
+         (returntype (when (stringp (ac-ctags-node-returntype node))
+                       (concat ":" (ac-ctags-node-returntype node))))
+         (viewprop returntype))
+    (propertize ret
+                'view (concat ret
+                              (ac-ctags-get-spaces-to-insert ret viewprop)
+                              returntype)
+                'signature (ac-ctags-node-signature node))))
 
 (defun ac-ctags-skip-to-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
@@ -844,6 +882,25 @@ SIGNATURE must be like \"(int i, int j)\"."
       (reduce (lambda (x y) (concat x "\n" y)) lst))
      (t ac-ctags-no-document-message))))
 
+(defun ac-ctags-action ()
+  (cond
+   ((eq major-mode 'c-mode)
+    (ac-ctags-c-mode-action))
+   (t
+    nil)))
+
+(defun ac-ctags-c-mode-action ()
+  "Make and expand yasnippet if possible."
+  (when (fboundp 'yas-expand-snippet)
+    (let* ((cand (cdr ac-last-completion))
+           (signature (get-text-property 0 'signature cand))
+           (template (and (stringp signature)
+                          (ac-ctags-make-yasnippet-template-from-signature
+                           signature))))
+      (when (stringp template)
+        (delete-char (- (length signature)))
+        (yas-expand-snippet template)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ac-source-ctags
 (ac-define-source ctags
@@ -852,7 +909,8 @@ SIGNATURE must be like \"(int i, int j)\"."
     (selection-face . ac-ctags-selection-face)
     (document . ac-ctags-document)
     (requires . 2)
-    (prefix . ac-ctags-prefix)))
+    (prefix . ac-ctags-prefix)
+    (action . ac-ctags-action)))
 
 (provide 'auto-complete-ctags)
 ;;; auto-complete-ctags.el ends here
