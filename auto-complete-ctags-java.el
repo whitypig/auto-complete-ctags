@@ -170,8 +170,8 @@ Signature property is used to construct yasnippet template."
                                        (line-beginning-position)))))
          (str-before-dot
           (and (integerp beg) (integerp end) (< beg end)
-               (ac-ctags-trim-whitespace
-                (buffer-substring-no-properties beg end)))))
+               (regexp-quote (ac-ctags-trim-whitespace
+                              (buffer-substring-no-properties beg end))))))
     (when (stringp str-before-dot)
       (cond
        ((string= "this" str-before-dot)

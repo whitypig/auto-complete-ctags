@@ -1018,7 +1018,10 @@ ctags."
             (ac-ctags-cpp-parse-before-dot-or-arrow-part "SomeClass::func1(func2(), func3())")))
   (should
    (string= "varname"
-            (ac-ctags-cpp-parse-before-dot-or-arrow-part "(*varname)"))))
+            (ac-ctags-cpp-parse-before-dot-or-arrow-part "(*varname)")))
+  (should
+   (string= "varname"
+            (ac-ctags-cpp-parse-before-dot-or-arrow-part "varname[j]"))))
 
 (ert-deftest test-ac-ctags-cpp-line-has-typeinfo-p ()
   (should

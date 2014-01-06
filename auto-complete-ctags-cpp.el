@@ -40,15 +40,15 @@
     (and (or (string-match-p (concat type-regexp1
                                      ;"[[:space:]*]+"
                                      varname
-                                     "[,=;)[:space:]]"
+                                     "[[*,=;)[:space:]]"
                                      )
                              line)
              (string-match-p (concat type-regexp2
                                      varname
-                                     "[,=;)[:space:]]")
+                                     "[[*,=;)[:space:]]")
                              line)
              (string-match-p (concat varname
-                                     "[ =]+"
+                                     "[[ =]+"
                                      "new")
                              line))
          (not (string-match-p exclude-regexp line))
@@ -64,7 +64,7 @@
                                     (re-search-backward "->" (line-beginning-position) t 1)))))
          (beg (save-excursion (and end
                                    (goto-char end)
-                                   (or (and (re-search-backward "[;{}=]" (line-beginning-position) t 1)
+                                   (or (and (re-search-backward "[;{}=&]" (line-beginning-position) t 1)
                                             (1+ (point)))
                                        (line-beginning-position)))))
          (str-before-dot
@@ -173,7 +173,7 @@ Also we ignore primitive types such as int, double."
   "Return neccessary part of string in LINE to determine type of VARNAME."
   (let ((ln (ac-ctags-trim-whitespace line)))
     (cond
-     ((string-match (concat "(""\\([^()]+" varname "\\))") line)
+     ((string-match (concat "(""\\([^()]+" varname "[^)]*\\))") line)
       (match-string-no-properties 1 line))
      (t
       line))))
@@ -188,8 +188,8 @@ Also we ignore primitive types such as int, double."
 (defun ac-ctags-cpp-extract-variable-line (varname)
   "Return string which we has inferred has a typename of VARNAME."
   (or (ac-ctags-cpp-extract-variable-line-1 varname
-                                             (point-min)
-                                             (point))
+                                            (point)
+                                            (point-min))
       (ac-ctags-cpp-extract-variable-line-1 varname
                                              (1+ (point))
                                              (point-max))))
@@ -197,9 +197,12 @@ Also we ignore primitive types such as int, double."
 (defun ac-ctags-cpp-extract-variable-line-1 (varname beg end)
   (save-excursion
     (loop with case-fold-search = nil
-          while (re-search-forward (concat "[ \t*]" varname "[; =)]")
-                                   end
-                                   t)
+          with f = (if (< beg end)
+                       #'re-search-forward
+                     #'re-search-backward)
+          while (funcall f (concat "[ \t*&]" varname "[[*,; =)]")
+                         end
+                         t)
           initially do (goto-char beg)
           when (ac-ctags-cpp-line-has-typeinfo-p
                 varname
@@ -227,6 +230,8 @@ Also we ignore primitive types such as int, double."
         with case-fold-search = nil
         with stack = nil
         with paren-count = 0
+        ;; discard characters between "[" and "]"
+        with sbracket-count = 0
         with identifier = nil
         for ch in (nreverse (split-string string "" t))
         if (string= ch ")")
@@ -243,18 +248,26 @@ Also we ignore primitive types such as int, double."
                (push (ac-ctags-trim-whitespace (reduce #'concat identifier))
                      stack))
              (setq identifier nil)))
+        else if (string= ch "]")
+        do (incf sbracket-count)
+        else if (string= ch "[")
+        do (decf sbracket-count)
         else if (or (string= ch " ") (string= ch "."))
         do (cond
-            ((zerop paren-count)
+            ((and (zerop paren-count) (zerop sbracket-count))
              ;; this space or dot delimits this expression
              (return-from this-func
                (and identifier
                     (ac-ctags-trim-whitespace
                      (reduce #'concat identifier)))))
+            ((zerop sbracket-count)
+             (push ch identifier))
             (t
-             (push ch identifier)))
+             ;; we discard characters between "[" and "]"
+             nil))
         else if (string-match "[a-zA-Z0-9_:]" ch)
-        do (push ch identifier)
+        do (when (zerop sbracket-count)
+             (push ch identifier))
         finally (return-from this-func
                   (progn
                     (when identifier
@@ -270,6 +283,7 @@ Also we ignore primitive types such as int, double."
                                        "return\\|"
                                        "for\\|"
                                        "if\\|"
+                                       "void"
                                        "\\)$")
                                s))
                lst)))
@@ -335,10 +349,12 @@ functions of class CLASSNAME."
                    (char-equal ch2 ?-))
           ;; ->
           (point)))
-       (t
+       ((string-match "[a-zA-Z_]" (make-string 1 ch1))
         (when (save-excursion
                 (re-search-backward "\\(\\.\\|->\\)" nil (line-beginning-position)))
-          (match-end 1)))))))
+          (match-end 1)))
+       (t
+        nil)))))
 
 (defun ac-ctags-cpp-get-members-by-scope-operator (class prefix)
   "Return a list of strings that begin with PREFIX and that are
