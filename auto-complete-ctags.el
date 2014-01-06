@@ -671,6 +671,23 @@ on when you have updated tags file."
   (interactive)
   (ac-ctags-build-1 nil ac-ctags-current-tags-list))
 
+(defun ac-ctags-unload-tag-file (filename)
+  "Unload ctags file FILENAME.
+The next completion is done without ctags file FILENAME."
+  ;; We don't let a user unload a tag file if there is only one.
+  (interactive (list (if (< (length ac-ctags-current-tags-list) 2)
+                         ""
+                       (completing-read
+                        "Tags file to unload: "
+                        ac-ctags-current-tags-list))))
+  (cond
+   ((< (length ac-ctags-current-tags-list) 2)
+    (message "You don't want to unload a tags file from a list that contains only one tags file."))
+   ((stringp filename)
+    (setq ac-ctags-current-tags-list
+          (remove filename ac-ctags-current-tags-list))
+    (ac-ctags-update))))
+
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
