@@ -730,7 +730,7 @@ yasnippet template if possible."
 being properly concatenated."
   (let* ((raw-signature (ac-ctags-node-signature node))
          (signature (when (stringp raw-signature)
-                      (if (string-match "void" raw-signature)
+                      (if (string-match "^([ ]*void[ ]*)$" raw-signature)
                           ;; If signature is "(void)", we use "()"
                           ;; because they are calling this function,
                           ;; not declearing or defining one.
