@@ -619,6 +619,8 @@ FROM-MODE and TO-MODE."
     (goto-char (point-min))
     (insert "Type t or Enter on the list you want to use.")
     (newline)
+    (insert "Tags list currently in use is the top one.")
+    (newline)
     (newline)
     (setq beg (point))
     (setq b (point))
