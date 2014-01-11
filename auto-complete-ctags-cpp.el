@@ -280,10 +280,22 @@ Also we ignore primitive types such as int, double."
     (remove-if (lambda (s)
                  (string-match (concat "^\\("
                                        "const\\|"
+                                       "do\\|"
                                        "return\\|"
                                        "for\\|"
+                                       "go\\|"
                                        "if\\|"
-                                       "void"
+                                       "inline\\|"
+                                       "namespace\\|"
+                                       "private\\|"
+                                       "protected\\|"
+                                       "public\\|"
+                                       "return\\|"
+                                       "static\\|"
+                                       "using\\|"
+                                       "virtual\\|"
+                                       "void\\|"
+                                       "while"
                                        "\\)$")
                                s))
                lst)))
