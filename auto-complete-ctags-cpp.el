@@ -301,6 +301,8 @@ Also we ignore primitive types such as int, double."
                lst)))
 
 (defun ac-ctags-cpp-collect-member-functions (classname prefix)
+  (message "DEBUG: ac-ctags-cpp-collect-member-functions, classname=%s, prefix=%s"
+           classname prefix)
   (loop with case-fold-search = nil
         for node in (ac-ctags-get-lang-db "C++")
         for name = (ac-ctags-node-name node)
@@ -309,7 +311,16 @@ Also we ignore primitive types such as int, double."
         when (and (stringp classname)
                   (stringp kind)
                   (stringp class)
-                  (string= class classname)
+                  ;; Example: class=std::vector, classname=vector
+                  ;; If class has scope operators and classname
+                  ;; doesnt, we cannot find out which namespace
+                  ;; classname belongs to. So we don't care about it
+                  ;; and search for members belonging to class
+                  ;; classname
+                  (if (string-match-p "::" class)
+                      (string-match-p (concat "::" classname "$") class)
+                    (string= class classname))
+                  ;(string= class classname)
                   (or (string= kind "function") (string= kind "prototype"))
                   ;; exclude names having a scope operator
                   (not (string-match-p "::" name))
