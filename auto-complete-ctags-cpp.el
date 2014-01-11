@@ -360,6 +360,7 @@ functions of class CLASSNAME."
   "Return a list of strings that begin with PREFIX and that are
 members in CLASS. CLASS is either classname or namespace. If
 PREFIX is nil or empty string, return all members of CLASS."
+  (message "DEBUG: class=%s, prefix=%s" class prefix)
   (loop with case-fold-search = nil
         with needle = (concat class "::" prefix)
         for node in (ac-ctags-get-lang-db "C++")
@@ -370,25 +371,35 @@ PREFIX is nil or empty string, return all members of CLASS."
         with nlimits = ac-ctags-candidate-limit
         with candidates = nil
         with count = 0
-        when (and (or
-                   ;; case for "::foo"
-                   (or (null class) (string= "" class))
-                   ;; check classname
-                   (and (stringp classname)
-                        (string= classname class)
-                        (not (string-match-p "::" name)))
-                   ;; check namespace
-                   (and (stringp namespace)
-                        (string-match (concat class "$") namespace)
-                        (not (string-match-p "::" name))))
-                  (or (null prefix)
-                      (string= prefix "")
-                      (string-match (concat "^" prefix) name)))
-        do (progn (push (ac-ctags-cpp-make-candidate node) candidates)
+        when (or
+              (string-match-p (concat "^" needle) name)
+              (and (or
+                    ;; case for "::foo"
+                    (or (null class) (string= "" class))
+                    ;; check classname
+                    (and (stringp classname)
+                         (string= classname class)
+                         (not (string-match-p "::" name)))
+                    ;; check namespace
+                    (and (stringp namespace)
+                         (string-match (concat class "$") namespace)
+                         (not (string-match-p "::" name))))
+                   (or (null prefix)
+                       (string= prefix "")
+                       (string-match (concat "^" prefix) name))))
+        do (progn (push (ac-ctags-cpp-strip-class-name
+                         (ac-ctags-cpp-make-candidate node)
+                         class)
+                        candidates)
                   (incf count)
                   (when (>= count nlimits)
                     (return (sort candidates #'string<))))
         finally (return (sort candidates #'string<))))
+
+(defun ac-ctags-cpp-strip-class-name (str class)
+  (if (string-match (concat "^" class "::") str)
+      (substring-no-properties str (match-end 0))
+    str))
 
 (defun ac-ctags-cpp-make-candidate (node)
   (let ((kind (ac-ctags-node-kind node))
@@ -477,10 +488,9 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
         else if (string= ch "<")
         do (decf nangle-bracket)
         else if (string= ch ":")
-        do (when (and (< (1+ i) len)
-                      (string= ":" (nth (1+ i) lst))
-                      (zerop nangle-bracket))
-             (return-from this-func (reduce #'concat acc)))
+        do (when (and (zerop nangle-bracket)
+                      (< (+ i 2) len))
+             (push ch acc))
         else
         do (when (zerop nangle-bracket)
              (push ch acc))
@@ -538,7 +548,7 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
     (candidate-face . ac-ctags-candidate-face)
     (selection-face . ac-ctags-selection-face)
     (requires . 0)
-    (prefix . "::\\(.*\\)")
+    (prefix . "::\\([A-Za-z0-9_]*\\)")
     (action . ac-ctags-cpp-function-action)
     ))
 

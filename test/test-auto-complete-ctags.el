@@ -13,6 +13,7 @@
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.ctags")
 (defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
 (defconst test-ac-ctags-cpp-tagsfile2 "test_with_q.ctags")
+(defconst test-ac-ctags-cpp-tagsfile3 "cc.ctags")
 (defconst test-ac-ctags-java-tagsfile "java.new.tags")
 (defconst test-ac-ctags-java-tagsfile2 "java.ctags")
 (defconst test-ac-ctags-java-goos-tagfile "goos.ctags")
@@ -1140,7 +1141,7 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-get-members-by-scope-operator ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'new)
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile3 'new)
      (should
       (equal '("get()" "getInstance()" "getObj()" "getObj2()")
              (mapcar #'substring-no-properties
@@ -1149,7 +1150,11 @@ ctags."
       (equal '("i_")
              (mapcar #'substring-no-properties
                      (ac-ctags-cpp-get-members-by-scope-operator
-                      "TestClass" "i")))))))
+                      "TestClass" "i"))))
+     (should
+      (equal '("myns1::myns2")
+             (mapcar #'substring-no-properties
+                     (ac-ctags-cpp-get-members-by-scope-operator "myns1" "")))))))
 
 (ert-deftest test-ac-ctags-cpp-split-string-by-separator ()
   (should
@@ -1163,17 +1168,17 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-parse-before-scope-operator-1 ()
   (should
    (string=
-    "vector"
+    "std::vector"
     (ac-ctags-cpp-parse-before-scope-operator-1 "std::vector<std::Map>")))
   (should
    (string=
-    "map"
+    "std::map"
     (ac-ctags-cpp-parse-before-scope-operator-1 "std::map<std::vector<int>, std::string>")))
   (should
    (string= "testing"
             (ac-ctags-cpp-parse-before-scope-operator-1 "::testing")))
   (should
-   (string= "SomeClass"
+   (string= "mynamespace::SomeClass"
             (ac-ctags-cpp-parse-before-scope-operator-1 "mynamespace::SomeClass")))
   (should
    (string= "std"
@@ -1269,4 +1274,13 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
      ;; add another tag file into the current list and
      ;; check if there is errors
-     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2))))
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'current))))
+
+(ert-deftest test-ac-ctags-cpp-strip-class-name ()
+  (string= "member1"
+           (ac-ctags-cpp-strip-class-name "foo::bar::member1" "foo::bar"))
+  (string= "member1"
+           (ac-ctags-cpp-strip-class-name "member1" "foo::bar"))
+  (string= "member1"
+           (ac-ctags-cpp-strip-class-name "ns1::ns2::cls1<int>::member1"
+                                          "ns1::ns2::cls1<int>")))

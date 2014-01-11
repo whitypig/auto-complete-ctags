@@ -718,14 +718,14 @@ The next completion is done without ctags file FILENAME."
 Also, if a candidate is of type functin or prototype and has a
 signature, make a candidate with its signature as well as
 yasnippet template if possible."
-  (loop for node in (ac-ctags-get-lang-db
-                     (car (ac-ctags-get-mode-string major-mode)))
-        for name = (ac-ctags-node-name node)
-        for kind = (ac-ctags-node-kind node)
-        when (string-match (concat "^" prefix) name)
-        collect (if (member kind '("function" "prototype"))
-                    (ac-ctags-make-function-candidate node)
-                  name)))
+  (loop for lang in (ac-ctags-get-mode-string major-mode)
+        nconc (loop for node in (ac-ctags-get-lang-db lang)
+                     for name = (ac-ctags-node-name node)
+                     for kind = (ac-ctags-node-kind node)
+                     when (string-match (concat "^" prefix) name)
+                     collect (if (member kind '("function" "prototype"))
+                                 (ac-ctags-make-function-candidate node)
+                               name))))
 
 (defun ac-ctags-make-function-candidate (node)
   "Make function candidates with its signature and return type
