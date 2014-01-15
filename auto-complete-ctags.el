@@ -585,7 +585,8 @@ FROM-MODE and TO-MODE."
         ac-ctags-tags-list-set nil
         ac-ctags-tags-db nil
         ac-ctags-completion-table nil
-        ac-ctags-current-completion-table nil))
+        ac-ctags-current-completion-table nil
+        ac-ctags-lang-hash-table (make-hash-table :test #'equal)))
 
 (defun ac-ctags-get-mode-string (mode)
   (or (cadr (assoc mode ac-ctags-mode-to-string-table))

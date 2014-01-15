@@ -386,30 +386,14 @@ PREFIX is nil or empty string, return all members of CLASS."
   (message "DEBUG: ac-ctags-cpp-get-members-by-scope-operator, class=%s, prefix=%s" class prefix)
   (loop with case-fold-search = nil
         with needle = (concat class "::" prefix)
-        for node in (ac-ctags-get-lang-db "C++")
-        for name = (ac-ctags-node-name node)
-        for kind = (ac-ctags-node-kind node)
-        for classname = (ac-ctags-node-class node)
-        for namespace = (ac-ctags-node-namespace node)
-        with nlimits = ac-ctags-candidate-limit
+        with lang-hash-table = (gethash "C++" ac-ctags-lang-hash-table)
+        with candidates-table = (reverse (gethash class lang-hash-table))
+        with nlimits = 50;ac-ctags-candidate-limit
         with candidates = nil
         with count = 0
-        when (or
-              (string-match-p (concat "^" needle) name)
-              (and (or
-                    ;; case for "::foo"
-                    (or (null class) (string= "" class))
-                    ;; check classname
-                    (and (stringp classname)
-                         (string= classname class)
-                         (not (string-match-p "::" name)))
-                    ;; check namespace
-                    (and (stringp namespace)
-                         (string-match (concat class "$") namespace)
-                         (not (string-match-p "::" name))))
-                   (or (null prefix)
-                       (string= prefix "")
-                       (string-match (concat "^" prefix) name))))
+        for node in candidates-table
+        for name = (ac-ctags-node-name node)
+        when (string-match-p needle name)
         do (progn (push (ac-ctags-cpp-strip-class-name
                          (ac-ctags-cpp-make-candidate node)
                          class)

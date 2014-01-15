@@ -1348,3 +1348,15 @@ ctags."
                   for tbl = (gethash lang ac-ctags-lang-hash-table)
                   nconc (loop for name being the hash-keys of tbl
                               collect name))))))))
+
+(ert-deftest test-ac-ctags-cpp-get-members-by-scope-operator-with-hashtable:cpp ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     ;; (equal '("myns2")
+     ;;        (mapcar #'substring-no-properties
+     ;;                (ac-ctags-cpp-get-members-by-scope-operator "myns1" nil)))
+     (should
+      (equal '("get()" "getInstance()" "getObj()" "getObj2()")
+             (mapcar #'substring-no-properties
+                     (ac-ctags-cpp-get-members-by-scope-operator "TestClass" "get")))))))
