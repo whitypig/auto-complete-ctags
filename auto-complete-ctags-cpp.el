@@ -383,7 +383,7 @@ functions of class CLASSNAME."
   "Return a list of strings that begin with PREFIX and that are
 members in CLASS. CLASS is either classname or namespace. If
 PREFIX is nil or empty string, return all members of CLASS."
-  (message "DEBUG: class=%s, prefix=%s" class prefix)
+  (message "DEBUG: ac-ctags-cpp-get-members-by-scope-operator, class=%s, prefix=%s" class prefix)
   (loop with case-fold-search = nil
         with needle = (concat class "::" prefix)
         for node in (ac-ctags-get-lang-db "C++")

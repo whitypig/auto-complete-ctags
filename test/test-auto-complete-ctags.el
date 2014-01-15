@@ -32,7 +32,8 @@
         (ac-ctags-tags-list-set nil)
         (ac-ctags-completion-table nil)
         (ac-ctags-current-completion-table nil)
-        (ac-ctags-tags-db-created-time nil))
+        (ac-ctags-tags-db-created-time nil)
+        (ac-ctags-lang-hash-table (make-hash-table :test #'equal)))
     (funcall body)))
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
@@ -1287,3 +1288,63 @@ ctags."
   (string= "member1"
            (ac-ctags-cpp-strip-class-name "ns1::ns2::cls1<int>::member1"
                                           "ns1::ns2::cls1<int>")))
+
+(ert-deftest test-ac-ctags-make-hash-key ()
+  (string= "std" (ac-ctags-make-hash-key "std"))
+  (string= "std" (ac-ctags-make-hash-key "std::vector"))
+  (string= "std::vector"
+           (ac-ctags-make-hash-key "std::vector::push_back"))
+  (string= ac-ctags-hash-key-for-short-name
+           (ac-ctags-make-hash-key "x"))
+  (string= "lon"
+           (ac-ctags-make-hash-key "longname_without_double_colon"))
+  (string= "testing" (ac-ctags-make-hash-key "::testing"))
+  (string= "testing::internal" (ac-ctags-make-hash-key "::testing::internal::foo")))
+
+(ert-deftest test-ac-ctags-put-node-into-hash-table-1 ()
+  (let ((tbl (make-hash-table :test #'equal))
+        (dummy-node nil))
+    (ac-ctags-put-node-into-hash-table-1 (test-ac-ctags-make-node :name "std" :kind "namespace")
+                                         tbl)
+    (should (not (null (gethash (ac-ctags-make-hash-key "std") tbl))))
+    (setq dummy-node
+          (test-ac-ctags-make-node :name "std::vector"
+                                   :namespace "std"))
+    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (should (equal '("std" "std::vector")
+                   (sort (mapcar #'ac-ctags-node-name (gethash "std" tbl))
+                         #'string<)))
+    (setq dummy-node
+          (test-ac-ctags-make-node :name "std::vector::push_back"
+                                   :namespace "std::vector"))
+    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (setq dummy-node
+          (test-ac-ctags-make-node :name "std::vector::size"
+                                   :namespace "std::vector"))
+    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (should (equal '("std::vector::push_back" "std::vector::size")
+                   (sort (mapcar #'ac-ctags-node-name (gethash "std::vector" tbl))
+                         #'string<)))
+    ;; adding no-scope-operators names
+    (setq dummy-node
+          (test-ac-ctags-make-node :name "EXPECT_EQ"
+                                   :namespace "::ns1"))
+    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (setq dummy-node
+          (test-ac-ctags-make-node :name "EXPECT_LT"
+                                   :namespace "::ns1"))
+    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (should (equal '("EXPECT_EQ" "EXPECT_LT")
+                   (sort (mapcar #'ac-ctags-node-name (gethash "EXP" tbl))
+                         #'string<)))))
+
+(ert-deftest test-ac-ctags-build-tagsdb-from-tags-with-hashtable:cpp ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     (should
+      (< 0 (length
+            (loop for lang being the hash-keys of ac-ctags-lang-hash-table
+                  for tbl = (gethash lang ac-ctags-lang-hash-table)
+                  nconc (loop for name being the hash-keys of tbl
+                              collect name))))))))

@@ -127,6 +127,10 @@ example.
 
 (defconst ac-ctags-no-document-message "No document available.")
 
+(defconst ac-ctags-hash-key-for-short-name "SHORTNAME")
+
+(defvar ac-ctags-lang-hash-table (make-hash-table :test #'equal))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file (file &optional new)
   "Visit tags file."
@@ -310,7 +314,8 @@ TAGS is expected to be an absolute path name."
       (let ((reporter (make-progress-reporter
                        (format "Building tags db for %s..."
                                (file-name-nondirectory tags))
-                       (point-min) (point-max))))
+                       (point-min) (point-max)))
+            (node nil))
         ;; todo: How can we get the return type? `signature' in tags file
         ;; does not contain the return type.
         (while (re-search-forward
@@ -341,15 +346,25 @@ TAGS is expected to be an absolute path name."
               (setq returntype (match-string-no-properties 1 line)))
             (when (string-match "namespace:[:]?\\([^\t\n]+\\)" line)
               (setq namespace (match-string-no-properties 1 line)))
+            (setq node `(,name ,file ,cmd ,kind ,class ,interface ,signature
+                               ,enum ,returntype ,namespace))
             (if (assoc lang db)
-                (push `(,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype ,namespace)
-                      (cdr (assoc lang db)))
-              (push `(,lang (,name ,file ,cmd ,kind ,class ,interface ,signature ,enum ,returntype ,namespace))
-                    db)))
+                (push node (cdr (assoc lang db)))
+              (push `(,lang ,node) db))
+            (ac-ctags-put-node-into-hash-table node lang))
           (progress-reporter-update reporter (point)))
         (progress-reporter-done reporter)))
     (ac-ctags-write-db-to-cache tags db)
     (setq tags-db (ac-ctags-merge-db db tags-db))))
+
+(defun ac-ctags-put-node-into-hash-table (node lang)
+  (unless (gethash lang ac-ctags-lang-hash-table nil)
+      (puthash lang (make-hash-table :test #'equal) ac-ctags-lang-hash-table))
+  (ac-ctags-put-node-into-hash-table-1 node (gethash lang ac-ctags-lang-hash-table)))
+
+(defun ac-ctags-put-node-into-hash-table-1 (node tbl)
+  (push node (gethash (ac-ctags-make-hash-key (ac-ctags-node-name node))
+                      tbl)))
 
 (defun ac-ctags-write-db-to-cache (tags-file db)
   "Write DB into cache."
@@ -689,6 +704,18 @@ The next completion is done without ctags file FILENAME."
     (setq ac-ctags-current-tags-list
           (remove filename ac-ctags-current-tags-list))
     (ac-ctags-update))))
+
+(defun ac-ctags-make-hash-key (str)
+  "Make a hash key for STR.
+If STR contains double colon, the key is the STR without the last
+double colon."
+  (cond
+   ((< (length str) 3)
+    ac-ctags-hash-key-for-short-name)
+   ((string-match-p "[^:]::[^:]" str)
+    (mapconcat #'identity (nbutlast (split-string str "::" t) 1) "::"))
+   (t
+    (substring-no-properties str 0 3))))
 
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
