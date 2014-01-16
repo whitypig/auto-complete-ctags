@@ -129,7 +129,12 @@ example.
 
 (defconst ac-ctags-hash-key-for-short-name "SHORTNAME")
 
-(defvar ac-ctags-lang-hash-table (make-hash-table :test #'equal))
+(defvar ac-ctags-top-level-hash-table (make-hash-table :test #'equal)
+  "A hash table with keys being a filename of tags file and
+  a value being another hash table which holds the contents of
+  the tags file.")
+
+(defconst ac-ctags-hash-key-minimum-length 2)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-visit-tags-file (file &optional new)
@@ -243,10 +248,10 @@ ctags."
   "Return t if cache file doesn't exist or the modified time of
 TAGS-FILE is newer than that of cache file."
   (let ((cache-pathname (ac-ctags-get-cache-file tags-file))
-        (file-created-time (nth 5 (file-attributes (expand-file-name tags-file)))))
+        (file-modification-time (nth 5 (file-attributes (expand-file-name tags-file)))))
     (or (not (file-exists-p cache-pathname))
         (time-less-p (ac-ctags-get-cache-created-time cache-pathname)
-                     file-created-time))))
+                     file-modification-time))))
 
 (defun ac-ctags-get-cache-created-time (pathname)
   "Return created time of this cache file PATHNAME."
@@ -351,20 +356,40 @@ TAGS is expected to be an absolute path name."
             (if (assoc lang db)
                 (push node (cdr (assoc lang db)))
               (push `(,lang ,node) db))
-            (ac-ctags-put-node-into-hash-table node lang))
+            (ac-ctags-put-node-into-hash-table node lang tags))
           (progress-reporter-update reporter (point)))
         (progress-reporter-done reporter)))
     (ac-ctags-write-db-to-cache tags db)
     (setq tags-db (ac-ctags-merge-db db tags-db))))
 
-(defun ac-ctags-put-node-into-hash-table (node lang)
-  (unless (gethash lang ac-ctags-lang-hash-table nil)
-      (puthash lang (make-hash-table :test #'equal) ac-ctags-lang-hash-table))
-  (ac-ctags-put-node-into-hash-table-1 node (gethash lang ac-ctags-lang-hash-table)))
+(defun ac-ctags-make-top-level-hash-key (filename)
+  "Make a hash key of `ac-ctags-top-level-hash-table' from FILENAME."
+  (expand-file-name filename))
 
-(defun ac-ctags-put-node-into-hash-table-1 (node tbl)
+(defun ac-ctags-put-node-into-hash-table (node lang tags-file)
+  (unless (ac-ctags-get-lang-hash-table tags-file)
+    ;; create an entry for this TAGS-FILE
+    (puthash (ac-ctags-make-top-level-hash-key tags-file) (make-hash-table :test #'equal)
+             ac-ctags-top-level-hash-table))
+  (ac-ctags-put-node-into-hash-table-1 node
+                                       lang
+                                       (gethash (ac-ctags-make-top-level-hash-key tags-file)
+                                                ac-ctags-top-level-hash-table)))
+
+(defun ac-ctags-put-node-into-hash-table-1 (node lang tbl)
+  (unless (gethash lang tbl nil)
+    (puthash lang (make-hash-table :test #'equal) tbl))
+  (ac-ctags-put-node-into-hash-table-2 node (gethash lang tbl)))
+
+(defun ac-ctags-put-node-into-hash-table-2 (node tbl)
   (push node (gethash (ac-ctags-make-hash-key (ac-ctags-node-name node))
                       tbl)))
+
+(defun ac-ctags-get-lang-hash-table (tags-file)
+  (gethash (ac-ctags-make-top-level-hash-key tags-file) ac-ctags-top-level-hash-table nil))
+
+(defun ac-ctags-get-nodes-from-hash-table (name tbl)
+  (gethash (ac-ctags-make-hash-key name) tbl nil))
 
 (defun ac-ctags-write-db-to-cache (tags-file db)
   "Write DB into cache."
@@ -586,7 +611,7 @@ FROM-MODE and TO-MODE."
         ac-ctags-tags-db nil
         ac-ctags-completion-table nil
         ac-ctags-current-completion-table nil
-        ac-ctags-lang-hash-table (make-hash-table :test #'equal)))
+        ac-ctags-top-level-hash-table (make-hash-table :test #'equal)))
 
 (defun ac-ctags-get-mode-string (mode)
   (or (cadr (assoc mode ac-ctags-mode-to-string-table))
@@ -711,12 +736,17 @@ The next completion is done without ctags file FILENAME."
 If STR contains double colon, the key is the STR without the last
 double colon."
   (cond
-   ((< (length str) 3)
+   ((string-match "::$" str)
+    (substring-no-properties str 0 (match-beginning 0)))
+   ((string-match-p "::" str)
+    (let ((l (split-string str "::" t)))
+      (if (< (length l) 2)
+          (car l)
+        (mapconcat #'identity (nbutlast l 1) "::"))))
+   ((< (length str) ac-ctags-hash-key-minimum-length)
     ac-ctags-hash-key-for-short-name)
-   ((string-match-p "[^:]::[^:]" str)
-    (mapconcat #'identity (nbutlast (split-string str "::" t) 1) "::"))
    (t
-    (substring-no-properties str 0 3))))
+    (substring-no-properties str 0 ac-ctags-hash-key-minimum-length))))
 
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()

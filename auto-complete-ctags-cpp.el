@@ -304,12 +304,11 @@ Also we ignore primitive types such as int, double."
   (message "DEBUG: ac-ctags-cpp-collect-member-functions, classname=%s, prefix=%s"
            classname prefix)
   (loop with case-fold-search = nil
-        for node in (ac-ctags-get-lang-db "C++")
+        for node in (ac-ctags-cpp-collect-nodes-by-typename classname)
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         for class = (ac-ctags-node-class node)
-        when (and (stringp classname)
-                  (stringp kind)
+        when (and (stringp kind)
                   (stringp class)
                   ;; Example: class=std::vector, classname=vector
                   ;; If class has scope operators and classname
@@ -317,17 +316,23 @@ Also we ignore primitive types such as int, double."
                   ;; classname belongs to. So we don't care about it
                   ;; and search for members belonging to class
                   ;; classname
-                  (if (string-match-p "::" class)
-                      (string-match-p (concat "::" classname "$") class)
-                    (string= class classname))
-                  ;(string= class classname)
                   (or (string= kind "function") (string= kind "prototype"))
                   ;; exclude names having a scope operator
-                  (not (string-match-p "::" name))
                   (or (null prefix)
                       (string= prefix "")
-                      (string-match-p (concat "^" prefix "[^:]*") name)))
+                      (if (string-match-p "::" name)
+                          (string-match-p (concat "::" prefix) name)
+                        (string= prefix name))))
         collect (ac-ctags-cpp-make-function-candidate node)))
+
+(defun ac-ctags-cpp-collect-nodes-by-typename (typename)
+  (loop for tags-file in ac-ctags-current-tags-list
+        for lang-tbl = (ac-ctags-get-lang-hash-table tags-file)
+        append (loop with node-table = (gethash "C++" lang-tbl nil)
+                     for key being the hash-keys of node-table
+                     when (or (string-match-p (concat "::" typename "$") key)
+                              (string-match-p (concat "^" typename "$") key))
+                     append (gethash key node-table))))
 
 (defun ac-ctags-cpp-member-function-candidates ()
   (let ((type (ac-ctags-cpp-determine-type-name)))
@@ -384,24 +389,26 @@ functions of class CLASSNAME."
 members in CLASS. CLASS is either classname or namespace. If
 PREFIX is nil or empty string, return all members of CLASS."
   (message "DEBUG: ac-ctags-cpp-get-members-by-scope-operator, class=%s, prefix=%s" class prefix)
-  (loop with case-fold-search = nil
-        with needle = (concat class "::" prefix)
-        with lang-hash-table = (gethash "C++" ac-ctags-lang-hash-table)
-        with candidates-table = (reverse (gethash class lang-hash-table))
-        with nlimits = 50;ac-ctags-candidate-limit
-        with candidates = nil
-        with count = 0
-        for node in candidates-table
-        for name = (ac-ctags-node-name node)
-        when (string-match-p needle name)
-        do (progn (push (ac-ctags-cpp-strip-class-name
-                         (ac-ctags-cpp-make-candidate node)
-                         class)
-                        candidates)
-                  (incf count)
-                  (when (>= count nlimits)
-                    (return (sort candidates #'string<))))
-        finally (return (sort candidates #'string<))))
+  (loop for tags-file in ac-ctags-current-tags-list
+        for lang-table = (ac-ctags-get-lang-hash-table tags-file)
+        with nlimits = ac-ctags-candidate-limit
+        return (loop with case-fold-search = nil
+                     with needle = (concat class "::" prefix)
+                     with node-table = (gethash "C++" lang-table)
+                     with candidates-table = (reverse (gethash class node-table))
+                     with candidates = nil
+                     with count = 0
+                     for node in candidates-table
+                     for name = (ac-ctags-node-name node)
+                     when (string-match-p needle name)
+                     do (progn (push (ac-ctags-cpp-strip-class-name
+                                      (ac-ctags-cpp-make-candidate node)
+                                      class)
+                                     candidates)
+                               (incf count)
+                               (when (>= count nlimits)
+                                 (return (sort candidates #'string<))))
+                     finally (return (sort candidates #'string<)))))
 
 (defun ac-ctags-cpp-strip-class-name (str class)
   (if (string-match (concat "^" class "::") str)
@@ -425,7 +432,7 @@ PREFIX is nil or empty string, return all members of CLASS."
 (defun ac-ctags-cpp-make-function-candidate (node)
   "Return presentation form of NODE.
 Signature property is used to construct yasnippet template."
-  (let* ((ret (concat (ac-ctags-node-name node)
+  (let* ((ret (concat (car (last (split-string (ac-ctags-node-name node) "::" t)))
                       (ac-ctags-cpp-remove-trailing-keyword-from-signature
                        (ac-ctags-node-signature node))))
          (returntype (when (ac-ctags-node-returntype node)
@@ -498,7 +505,7 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
         do (when (and (zerop nangle-bracket)
                       (< (+ i 2) len))
              (push ch acc))
-        else
+        else if (string-match-p "[0-9a-zA-Z_]" ch)
         do (when (zerop nangle-bracket)
              (push ch acc))
         finally (return-from this-func (reduce #'concat acc))))
@@ -520,21 +527,24 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
 
 (defun ac-ctags-cpp-macro-candidates-1 (prefix)
   "Return candidates as a list of strings which begin with PREFIX."
-  (loop with case-fold-search = nil
+  (loop for tags-file in ac-ctags-current-tags-list
+        for lang-table = (ac-ctags-get-lang-hash-table tags-file)
         with nlimits = ac-ctags-candidate-limit
-        for node in (ac-ctags-get-lang-db "C++")
-        for name = (ac-ctags-node-name node)
-        for kind = (ac-ctags-node-kind node)
-        with candidates = nil
-        when (and (stringp kind)
-                  (string= kind "macro")
-                  (string-match (concat "^" prefix)
-                                name))
-        collect name into candidates
-        finally (return (sort (if (> (length candidates) nlimits)
-                                  (nbutlast candidates nlimits)
-                                candidates)
-                              #'string<))))
+        append (loop with case-fold-search = nil
+                     with node-tbl = (gethash "C++" lang-table nil)
+                     for node in (reverse (ac-ctags-get-nodes-from-hash-table prefix node-tbl))
+                     for name = (ac-ctags-node-name node)
+                     for kind = (ac-ctags-node-kind node)
+                     with candidates = nil
+                     when (and (stringp kind)
+                               (string= kind "macro")
+                               (string-match-p (concat "^" prefix)
+                                               name))
+                     collect name into candidates
+                     do (decf nlimits)
+                     if (zerop nlimits)
+                     do (return (sort candidates #'string<))
+                     finally (return (sort candidates #'string<)))))
 
 ;; Definitions of each ac-source for cpp
 (ac-define-source ctags-cpp-member-functions

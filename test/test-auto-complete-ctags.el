@@ -34,7 +34,8 @@
         (ac-ctags-completion-table nil)
         (ac-ctags-current-completion-table nil)
         (ac-ctags-tags-db-created-time nil)
-        (ac-ctags-lang-hash-table (make-hash-table :test #'equal)))
+        (ac-ctags-cache-)
+        (ac-ctags-top-level-hash-table (make-hash-table :test #'equal)))
     (funcall body)))
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
@@ -1265,6 +1266,7 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-macro-candidates-1 ()
   (test-ac-ctags-fixture
    (lambda ()
+     (shell-command (format "touch %s" test-ac-ctags-cpp-macro-and-ns-tagfile))
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-macro-and-ns-tagfile 'new)
      (should
       (= 2 (length (ac-ctags-cpp-macro-candidates-1 "MA"))))
@@ -1296,6 +1298,8 @@ ctags."
   (should (string= "std" (ac-ctags-make-hash-key "std::vector")))
   (should (string= "std::vector"
                    (ac-ctags-make-hash-key "std::vector::push_back")))
+  (should (string= "std::vector"
+                   (ac-ctags-make-hash-key "std::vector::")))
   (should (string= ac-ctags-hash-key-for-short-name
                    (ac-ctags-make-hash-key "x")))
   (should (string= "lo"
@@ -1303,6 +1307,22 @@ ctags."
   (should (string= "testing" (ac-ctags-make-hash-key "::testing")))
   (should (string= "testing::internal" (ac-ctags-make-hash-key "::testing::internal::foo")))
   (should (string= "a::b" (ac-ctags-make-hash-key "::a::b::c"))))
+
+(ert-deftest test-ac-ctags-put-node-into-hash-table ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (let ((dummy-node nil)
+           (lang-tbl nil)
+           (node-tbl nil))
+       (setq dummy-node (test-ac-ctags-make-node :name "std::vector"
+                                                 :namespace "std"))
+       (ac-ctags-put-node-into-hash-table dummy-node "C++" test-ac-ctags-cpp-tagsfile3)
+       (setq lang-tbl (ac-ctags-get-lang-hash-table test-ac-ctags-cpp-tagsfile3))
+       (setq node-tbl (gethash "C++" lang-tbl nil))
+       (should (hash-table-p node-tbl))
+       (should (equal '("std::vector")
+                      (mapcar #'ac-ctags-node-name
+                              (gethash "std" node-tbl))))))))
 
 (ert-deftest test-ac-ctags-put-node-into-hash-table-2 ()
   (let ((tbl (make-hash-table :test #'equal))
@@ -1316,11 +1336,11 @@ ctags."
     (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (should (equal '("std")
                    (sort (mapcar #'ac-ctags-node-name
-                                 (gethash (ac-ctags-make-hash-key "std") tbl))
+                                 (ac-ctags-get-nodes-from-hash-table "std" tbl))
                          #'string<)))
     (should (equal '("std::vector")
                    (sort (mapcar #'ac-ctags-node-name
-                                 (gethash (ac-ctags-make-hash-key "std::") tbl))
+                                 (ac-ctags-get-nodes-from-hash-table "std::" tbl))
                          #'string<)))
     (setq dummy-node
           (test-ac-ctags-make-node :name "std::vector::push_back"
@@ -1331,7 +1351,8 @@ ctags."
                                    :namespace "std::vector"))
     (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (should (equal '("std::vector::push_back" "std::vector::size")
-                   (sort (mapcar #'ac-ctags-node-name (gethash "std::vector" tbl))
+                   (sort (mapcar #'ac-ctags-node-name
+                                 (ac-ctags-get-nodes-from-hash-table "std::vector::" tbl))
                          #'string<)))
     ;; adding no-scope-operators names
     (setq dummy-node
@@ -1343,27 +1364,29 @@ ctags."
                                    :namespace "::ns1"))
     (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (should (equal '("EXPECT_EQ" "EXPECT_LT")
-                   (sort (mapcar #'ac-ctags-node-name (gethash
-                                                       (ac-ctags-make-hash-key "EXP")
-                                                       tbl))
+                   (sort (mapcar #'ac-ctags-node-name
+                                 (ac-ctags-get-nodes-from-hash-table "EXP" tbl))
                          #'string<)))
     ))
 
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags-with-hashtable:cpp ()
   (test-ac-ctags-fixture
    (lambda ()
+     (shell-command (format "touch %s" test-ac-ctags-cpp-tagsfile3))
      (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
      (should
       (< 0 (length
-            (loop for lang being the hash-keys of ac-ctags-lang-hash-table
-                  for tbl = (gethash lang ac-ctags-lang-hash-table)
-                  nconc (loop for name being the hash-keys of tbl
-                              collect name))))))))
+            (loop for lang-table being the hash-values of ac-ctags-top-level-hash-table
+                  nconc (loop for lang being the hash-keys of lang-table
+                              for tbl = (gethash lang lang-table)
+                              nconc (loop for name being the hash-keys of tbl
+                                          collect name)))))))))
 
 (ert-deftest test-ac-ctags-cpp-get-members-by-scope-operator-with-hashtable:cpp ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     (shell-command (format "touch %s" test-ac-ctags-cpp-tagsfile3))
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile3 'new)
      (equal '("myns2")
             (mapcar #'substring-no-properties
                     (ac-ctags-cpp-get-members-by-scope-operator "myns1" nil)))
@@ -1375,7 +1398,8 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-get-members-by-scope-operator-with-hashtable:stl_vector ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-stl-vector-tagfile ac-ctags-tags-db)
+     (shell-command (format "touch %s" test-ac-ctags-cpp-stl-vector-tagfile))
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-stl-vector-tagfile 'new)
      (should
       (equal '("vector")
              (sort (remove-duplicates
@@ -1387,7 +1411,8 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-collect-nodes-by-typename ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     (shell-command (format "touch %s" test-ac-ctags-cpp-tagsfile3))
+     (ac-ctags-visit-tags-file (expand-file-name test-ac-ctags-cpp-tagsfile3) 'new)
      (should
       (equal '("myns1::myns2::InsideClass::member1_")
              (mapcar #'substring-no-properties
@@ -1397,7 +1422,8 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-collect-member-functions-with-hash-table ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     (shell-command (format "touch %s" test-ac-ctags-cpp-tagsfile3))
+     (ac-ctags-visit-tags-file (expand-file-name test-ac-ctags-cpp-tagsfile3) 'new)
      (should
       (equal '("get()" "getInstance()" "getObj()" "getObj2()")
              (sort (mapcar #'substring-no-properties
@@ -1408,10 +1434,46 @@ ctags."
 (ert-deftest test-ac-ctags-cpp-collect-member-functions-with-hash-table:stl_vector ()
   (test-ac-ctags-fixture
    (lambda ()
-     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-stl-vector-tagfile ac-ctags-tags-db)
+     (shell-command (format "touch %s" test-ac-ctags-cpp-stl-vector-tagfile 'new))
+     (ac-ctags-visit-tags-file (expand-file-name test-ac-ctags-cpp-stl-vector-tagfile) 'new)
      (should
       (equal '("push_back(bool __x)" "push_back(const value_type& __x)")
              (sort (mapcar #'substring-no-properties
                            (ac-ctags-cpp-collect-member-functions "std::vector"
                                                                   "push"))
                    #'string<))))))
+
+(ert-deftest test-ac-ctags-cpp-collect-member-functions-with-hash-table:two-tags-file ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (shell-command (format "touch %s" test-ac-ctags-cpp-stl-vector-tagfile 'new))
+     (shell-command (format "touch %s" test-ac-ctags-cpp-tagsfile3))
+     (ac-ctags-visit-tags-file (expand-file-name test-ac-ctags-cpp-stl-vector-tagfile) 'new)
+     (ac-ctags-visit-tags-file (expand-file-name test-ac-ctags-cpp-tagsfile3) 'current)
+     (should
+      (equal '("push_back(bool __x)" "push_back(const value_type& __x)")
+             (sort (mapcar #'substring-no-properties
+                           (ac-ctags-cpp-collect-member-functions "std::vector"
+                                                                  "push"))
+                   #'string<)))
+     (should
+      (equal '("get()" "getInstance()" "getObj()" "getObj2()")
+             (sort (mapcar #'substring-no-properties
+                           (ac-ctags-cpp-collect-member-functions "TestClass"
+                                                                  "get"))
+                   #'string<))))))
+
+(ert-deftest test-ac-ctags-write-hashtable-to-file-and-read ()
+  (let ((tbl (make-hash-table :test #'equal))
+        (print-circle t)
+        (tbl2 nil))
+    (puthash "key1" "value1" tbl)
+    (should (string= "value1" (gethash "key1" tbl)))
+    (with-temp-file "hash.cache"
+      (print tbl (current-buffer)))
+    (with-current-buffer (find-file-noselect "hash.cache")
+      (setq tbl2 (ignore-errors (read (current-buffer))))
+      (setq tbl2 (ignore-errors (read (current-buffer))))
+      (kill-buffer))
+    (message "tbl2=%s" tbl2)
+    (should (string= "value1" (gethash "key1" tbl2)))))
