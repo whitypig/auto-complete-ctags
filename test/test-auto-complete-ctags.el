@@ -22,6 +22,7 @@
 (defconst test-ac-ctags-java-inf-tagsfile "inf.ctags")
 (defconst test-ac-ctags-qt-tags-file "qt.ctags")
 (defconst test-ac-ctags-cpp-macro-and-ns-tagfile "test2.ctags")
+(defconst test-ac-ctags-cpp-stl-vector-tagfile "stl_vector.ctags")
 
 (defconst test-ac-ctags-node-length 10)
 
@@ -1281,47 +1282,54 @@ ctags."
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'current))))
 
 (ert-deftest test-ac-ctags-cpp-strip-class-name ()
-  (string= "member1"
-           (ac-ctags-cpp-strip-class-name "foo::bar::member1" "foo::bar"))
-  (string= "member1"
-           (ac-ctags-cpp-strip-class-name "member1" "foo::bar"))
-  (string= "member1"
-           (ac-ctags-cpp-strip-class-name "ns1::ns2::cls1<int>::member1"
-                                          "ns1::ns2::cls1<int>")))
+  (should (string= "member1"
+                   (ac-ctags-cpp-strip-class-name "foo::bar::member1" "foo::bar")))
+  (should (string= "member1"
+           (ac-ctags-cpp-strip-class-name "member1" "foo::bar")))
+  (should (string= "member1"
+                   (ac-ctags-cpp-strip-class-name "ns1::ns2::cls1<int>::member1"
+                                                  "ns1::ns2::cls1<int>"))))
 
 (ert-deftest test-ac-ctags-make-hash-key ()
-  (string= "std" (ac-ctags-make-hash-key "std"))
-  (string= "std" (ac-ctags-make-hash-key "std::vector"))
-  (string= "std::vector"
-           (ac-ctags-make-hash-key "std::vector::push_back"))
-  (string= ac-ctags-hash-key-for-short-name
-           (ac-ctags-make-hash-key "x"))
-  (string= "lon"
-           (ac-ctags-make-hash-key "longname_without_double_colon"))
-  (string= "testing" (ac-ctags-make-hash-key "::testing"))
-  (string= "testing::internal" (ac-ctags-make-hash-key "::testing::internal::foo")))
+  (should (string= "st" (ac-ctags-make-hash-key "std")))
+  (should (string= "std" (ac-ctags-make-hash-key "std::")))
+  (should (string= "std" (ac-ctags-make-hash-key "std::vector")))
+  (should (string= "std::vector"
+                   (ac-ctags-make-hash-key "std::vector::push_back")))
+  (should (string= ac-ctags-hash-key-for-short-name
+                   (ac-ctags-make-hash-key "x")))
+  (should (string= "lo"
+                   (ac-ctags-make-hash-key "longname_without_double_colon")))
+  (should (string= "testing" (ac-ctags-make-hash-key "::testing")))
+  (should (string= "testing::internal" (ac-ctags-make-hash-key "::testing::internal::foo")))
+  (should (string= "a::b" (ac-ctags-make-hash-key "::a::b::c"))))
 
-(ert-deftest test-ac-ctags-put-node-into-hash-table-1 ()
+(ert-deftest test-ac-ctags-put-node-into-hash-table-2 ()
   (let ((tbl (make-hash-table :test #'equal))
         (dummy-node nil))
-    (ac-ctags-put-node-into-hash-table-1 (test-ac-ctags-make-node :name "std" :kind "namespace")
+    (ac-ctags-put-node-into-hash-table-2 (test-ac-ctags-make-node :name "std" :kind "namespace")
                                          tbl)
     (should (not (null (gethash (ac-ctags-make-hash-key "std") tbl))))
     (setq dummy-node
           (test-ac-ctags-make-node :name "std::vector"
                                    :namespace "std"))
-    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
-    (should (equal '("std" "std::vector")
-                   (sort (mapcar #'ac-ctags-node-name (gethash "std" tbl))
+    (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
+    (should (equal '("std")
+                   (sort (mapcar #'ac-ctags-node-name
+                                 (gethash (ac-ctags-make-hash-key "std") tbl))
+                         #'string<)))
+    (should (equal '("std::vector")
+                   (sort (mapcar #'ac-ctags-node-name
+                                 (gethash (ac-ctags-make-hash-key "std::") tbl))
                          #'string<)))
     (setq dummy-node
           (test-ac-ctags-make-node :name "std::vector::push_back"
                                    :namespace "std::vector"))
-    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (setq dummy-node
           (test-ac-ctags-make-node :name "std::vector::size"
                                    :namespace "std::vector"))
-    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (should (equal '("std::vector::push_back" "std::vector::size")
                    (sort (mapcar #'ac-ctags-node-name (gethash "std::vector" tbl))
                          #'string<)))
@@ -1329,14 +1337,17 @@ ctags."
     (setq dummy-node
           (test-ac-ctags-make-node :name "EXPECT_EQ"
                                    :namespace "::ns1"))
-    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (setq dummy-node
           (test-ac-ctags-make-node :name "EXPECT_LT"
                                    :namespace "::ns1"))
-    (ac-ctags-put-node-into-hash-table-1 dummy-node tbl)
+    (ac-ctags-put-node-into-hash-table-2 dummy-node tbl)
     (should (equal '("EXPECT_EQ" "EXPECT_LT")
-                   (sort (mapcar #'ac-ctags-node-name (gethash "EXP" tbl))
-                         #'string<)))))
+                   (sort (mapcar #'ac-ctags-node-name (gethash
+                                                       (ac-ctags-make-hash-key "EXP")
+                                                       tbl))
+                         #'string<)))
+    ))
 
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags-with-hashtable:cpp ()
   (test-ac-ctags-fixture
@@ -1353,10 +1364,54 @@ ctags."
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
-     ;; (equal '("myns2")
-     ;;        (mapcar #'substring-no-properties
-     ;;                (ac-ctags-cpp-get-members-by-scope-operator "myns1" nil)))
+     (equal '("myns2")
+            (mapcar #'substring-no-properties
+                    (ac-ctags-cpp-get-members-by-scope-operator "myns1" nil)))
      (should
       (equal '("get()" "getInstance()" "getObj()" "getObj2()")
              (mapcar #'substring-no-properties
                      (ac-ctags-cpp-get-members-by-scope-operator "TestClass" "get")))))))
+
+(ert-deftest test-ac-ctags-cpp-get-members-by-scope-operator-with-hashtable:stl_vector ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-stl-vector-tagfile ac-ctags-tags-db)
+     (should
+      (equal '("vector")
+             (sort (remove-duplicates
+                    (mapcar #'substring-no-properties
+                     (ac-ctags-cpp-get-members-by-scope-operator "std" "v"))
+                    :test #'equal)
+                   #'string<))))))
+
+(ert-deftest test-ac-ctags-cpp-collect-nodes-by-typename ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     (should
+      (equal '("myns1::myns2::InsideClass::member1_")
+             (mapcar #'substring-no-properties
+                     (mapcar #'ac-ctags-node-name
+                             (ac-ctags-cpp-collect-nodes-by-typename "InsideClass"))))))))
+
+(ert-deftest test-ac-ctags-cpp-collect-member-functions-with-hash-table ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-tagsfile3 ac-ctags-tags-db)
+     (should
+      (equal '("get()" "getInstance()" "getObj()" "getObj2()")
+             (sort (mapcar #'substring-no-properties
+                           (ac-ctags-cpp-collect-member-functions "TestClass"
+                                                                  "get"))
+                   #'string<))))))
+
+(ert-deftest test-ac-ctags-cpp-collect-member-functions-with-hash-table:stl_vector ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-build-tagsdb-from-tags test-ac-ctags-cpp-stl-vector-tagfile ac-ctags-tags-db)
+     (should
+      (equal '("push_back(bool __x)" "push_back(const value_type& __x)")
+             (sort (mapcar #'substring-no-properties
+                           (ac-ctags-cpp-collect-member-functions "std::vector"
+                                                                  "push"))
+                   #'string<))))))
