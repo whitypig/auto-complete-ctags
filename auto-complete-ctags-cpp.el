@@ -119,7 +119,7 @@
 (defun ac-ctags-cpp-get-typename-of-variable-1 (varname)
   ;; we have to go through tags file
   (loop with case-fold-search = nil
-        for node in (ac-ctags-get-lang-db "C++")
+        for node in (ac-ctags-get-nodes-by-lang-and-name "C++" varname)
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         for cmd = (ac-ctags-node-command node)
@@ -213,7 +213,7 @@ Also we ignore primitive types such as int, double."
 
 (defun ac-ctags-cpp-get-function-return-type (identifier)
   (loop with case-fold-search = nil
-        for node in (ac-ctags-get-lang-db "C++")
+        for node in (ac-ctags-get-nodes-by-lang-and-name "C++" identifier)
         for name = (ac-ctags-node-name node)
         for kind = (ac-ctags-node-kind node)
         for returntype = (ac-ctags-node-returntype node)
@@ -327,8 +327,8 @@ Also we ignore primitive types such as int, double."
 
 (defun ac-ctags-cpp-collect-nodes-by-typename (typename)
   (loop for tags-file in ac-ctags-current-tags-list
-        for lang-tbl = (ac-ctags-get-lang-hash-table tags-file)
-        append (loop with node-table = (gethash "C++" lang-tbl nil)
+        for lang-tbl = (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
+        append (loop with node-table = (gethash "C++" lang-tbl)
                      for key being the hash-keys of node-table
                      when (or (string-match-p (concat "::" typename "$") key)
                               (string-match-p (concat "^" typename "$") key))
@@ -390,11 +390,12 @@ members in CLASS. CLASS is either classname or namespace. If
 PREFIX is nil or empty string, return all members of CLASS."
   (message "DEBUG: ac-ctags-cpp-get-members-by-scope-operator, class=%s, prefix=%s" class prefix)
   (loop for tags-file in ac-ctags-current-tags-list
-        for lang-table = (ac-ctags-get-lang-hash-table tags-file)
+        for lang-table = (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
+        for node-table = (gethash "C++" lang-table)
         with nlimits = ac-ctags-candidate-limit
-        return (loop with case-fold-search = nil
+        when node-table
+        append (loop with case-fold-search = nil
                      with needle = (concat class "::" prefix)
-                     with node-table = (gethash "C++" lang-table)
                      with candidates-table = (reverse (gethash class node-table))
                      with candidates = nil
                      with count = 0
@@ -528,7 +529,7 @@ For example, std::vector<int>:: => (\"std\" \"::\" \"vector<int>\" \"::\")"
 (defun ac-ctags-cpp-macro-candidates-1 (prefix)
   "Return candidates as a list of strings which begin with PREFIX."
   (loop for tags-file in ac-ctags-current-tags-list
-        for lang-table = (ac-ctags-get-lang-hash-table tags-file)
+        for lang-table = (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
         with nlimits = ac-ctags-candidate-limit
         append (loop with case-fold-search = nil
                      with node-tbl = (gethash "C++" lang-table nil)

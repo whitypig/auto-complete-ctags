@@ -129,6 +129,7 @@ example.
 
 (defconst ac-ctags-hash-key-for-short-name "SHORTNAME")
 
+;; tagsfile => [ [C++ => (node1 node2...)] [C => (node3 node4...)] ]
 (defvar ac-ctags-top-level-hash-table (make-hash-table :test #'equal)
   "A hash table with keys being a filename of tags file and
   a value being another hash table which holds the contents of
@@ -184,13 +185,13 @@ need be."
     (unless (or (null new-lst) (equal old-lst new-lst))
       ;; If tags list has changed, we update the information
       (setq db (ac-ctags-build-tagsdb new-lst db))
-      (setq tbl (ac-ctags-build-completion-table db))
-      (setq vec (ac-ctags-build-current-completion-table vec tbl))
+      ;(setq tbl (ac-ctags-build-completion-table db))
+      ;(setq vec (ac-ctags-build-current-completion-table vec tbl))
       ;; Update the state
       (setq ac-ctags-current-tags-list new-lst
             ac-ctags-tags-db db
-            ac-ctags-completion-table tbl
-            ac-ctags-current-completion-table vec
+            ;ac-ctags-completion-table tbl
+            ;ac-ctags-current-completion-table vec
             ac-ctags-tags-db-created-time (nbutlast (current-time))))))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
@@ -236,13 +237,32 @@ ctags."
 (defun ac-ctags-build-tagsdb (tags-list tags-db)
   "Build tagsdb from each element of TAGS-LIST."
   (dolist (e tags-list tags-db)
-    (if (ac-ctags-tags-file-updated-p e)
-        ;; if this tags file has been updated,
-        ;; we have to rebuild tagsdb for this tags file
-        (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))
-      ;; otherwise, read db from cache if it exists
-      (setq tags-db (or (ac-ctags-read-tagsdb-from-cache e tags-db)
-                        (ac-ctags-build-tagsdb-from-tags e tags-db))))))
+    (ac-ctags-remove-table-for-tags-file e)
+    (cond
+     ((ac-ctags-tags-file-updated-p e)
+      ;; if this tags file has been updated,
+      ;; we have to rebuild tagsdb for this tags file
+      (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db)))
+     ((ac-ctags-cache-file-exist-p e)
+      ;; If cache file for this tags file exists, we read that in
+      (ac-ctags-merge-hash-table (ac-ctags-read-in-hash-table e) e))
+     (t
+      ;; If this tags file has NOT been updated and there is no cache file,
+      ;; we just re-create tags db
+      (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))))))
+
+(defun ac-ctags-merge-hash-table (tbl tags-file)
+  "Put TBL into hash table `ac-ctags-top-level-hash-table'."
+  (unless (gethash (ac-ctags-make-top-level-hash-key tags-file)
+                   ac-ctags-top-level-hash-table)
+    (puthash (ac-ctags-make-top-level-hash-key tags-file)
+             tbl
+             ac-ctags-top-level-hash-table)))
+
+(defun ac-ctags-remove-table-for-tags-file (tags-file)
+  "Remove an entry for TAGS-FILE in `ac-ctags-top-level-hash-table'."
+  (remhash (ac-ctags-make-top-level-hash-key tags-file)
+           ac-ctags-top-level-hash-table))
 
 (defun ac-ctags-tags-file-updated-p (tags-file)
   "Return t if cache file doesn't exist or the modified time of
@@ -290,6 +310,59 @@ Cache file, if exists, corresponds to one tags file"
       (message "Reading db for %s from cache...done" (file-name-nondirectory tags-file))
       (setq tags-db (ac-ctags-merge-db db tags-db)))))
 
+(defun ac-ctags-write-hash-table-to-cache (tagfile)
+  "Write a hash table which corresponds to TAGFIEL to cache."
+  (ac-ctags-write-hash-table-to-cache-1
+   (ac-ctags-get-lang-hash-table-for-tagfile tagfile)
+   (ac-ctags-get-cache-file tagfile)))
+
+(defun ac-ctags-write-hash-table-to-cache-1 (table cache-file)
+  "Write hash table TABLE to CACHE-FILE."
+  (message "ac-ctags: writing hash table to cache...")
+  (with-temp-file cache-file
+    (ac-ctags-write-hash-table table
+                               (current-buffer)))
+  (message "ac-ctags: writing hash table to cache...done"))
+
+(defun ac-ctags-write-hash-table (table stream)
+  "Write hash table OBJ into STREAM."
+  (loop for key being the hash-keys of table
+        for val = (gethash key table)
+        if (hash-table-p val)
+        do (progn (print key stream)
+                  ;; This key should be language such as "C++".
+                  ;; and the value should be nodes table
+                  (ac-ctags-write-hash-table val stream))
+        else do (print (cons key val) stream)))
+
+(defun ac-ctags-read-in-hash-table (tags-file)
+  (ac-ctags-read-in-hash-table-1 tags-file (ac-ctags-get-cache-file tags-file)))
+
+(defun ac-ctags-read-in-hash-table-1 (tags-file cache-file)
+  "Read hash table from cache file FILE and return the hash table."
+  (let ((table (make-hash-table :test #'equal)))
+    (with-current-buffer (find-file-noselect cache-file t)
+      (let ((reporter
+             (make-progress-reporter (format "ac-ctags: Reading hash table for %s from cache..."
+                                             (file-name-nondirectory tags-file))
+                                     (point-min)
+                                     (point-max)))
+            (obj nil)
+            (lang nil))
+        (goto-char (point-min))
+        (while (and (not (eq :eof (setq obj (ignore-errors (read (current-buffer))))))
+                    (not (null obj)))
+          (progress-reporter-update reporter (point))
+          (cond
+           ((consp obj)
+            (puthash (car obj) (cdr obj) (gethash lang table)))
+           ((stringp obj)
+            (setq lang obj)
+            (puthash lang (make-hash-table :test #'equal) table))))
+        (progress-reporter-done reporter))
+      (kill-buffer))
+    table))
+
 (defun ac-ctags-cache-file-exist-p (tags-file)
   (file-exists-p (concat (directory-file-name (expand-file-name ac-ctags-cache-dir))
                          "/"
@@ -304,6 +377,7 @@ Cache file, if exists, corresponds to one tags file"
                                  cache-name)))
     (concat cache-pathname ".acctags")))
 
+;; TODO remove old entries for tags, then put new entries into table
 (defun ac-ctags-build-tagsdb-from-tags (tags tags-db)
   "Build tag information db from TAGS and return the db.
 Each element of DB is a list like (name cmd signature) where NAME
@@ -312,7 +386,8 @@ Each element of DB is a list like (name cmd signature) where NAME
   SIGNATURE is nil.
 TAGS is expected to be an absolute path name."
   (assert (ac-ctags-is-valid-tags-file-p tags))
-  (let ((db nil))
+  (let ((db nil)
+        (case-fold-search nil))
     (with-temp-buffer
       (insert-file-contents-literally tags)
       (goto-char (point-min))
@@ -334,22 +409,22 @@ TAGS is expected to be an absolute path name."
                   cmd (ac-ctags-trim-whitespace
                        (ac-ctags-strip-cmd (match-string-no-properties 3))))
             ;; If this line contains a language information, we get it.
-            (when (string-match "language:\\([^\t\n]+\\)" line)
+            (when (string-match "\tlanguage:\\([^\t\n]+\\)" line)
               (setq lang (match-string-no-properties 1 line)))
             ;; If this line contains a signature, we get it.
-            (when (string-match "signature:\\([^\t\n]+\\)" line)
+            (when (string-match "\tsignature:\\([^\t\n]+\\)" line)
               (setq signature (match-string-no-properties 1 line)))
-            (when (string-match "kind:\\([^\t\n]+\\)" line)
+            (when (string-match "\tkind:\\([^\t\n]+\\)" line)
               (setq kind (match-string-no-properties 1 line)))
-            (when (string-match "class:\\([^\t\n]+\\)" line)
+            (when (string-match "\tclass:\\([^\t\n]+\\)" line)
               (setq class (match-string-no-properties 1 line)))
-            (when (string-match "interface:\\([^\t\n]+\\)" line)
+            (when (string-match "\tinterface:\\([^\t\n]+\\)" line)
               (setq interface (match-string-no-properties 1 line)))
-            (when (string-match "enum:\\([^\t\n]+\\)" line)
+            (when (string-match "\tenum:\\([^\t\n]+\\)" line)
               (setq enum (match-string-no-properties 1 line)))
-            (when (string-match "returntype:\\([^\t\n]+\\)" line)
+            (when (string-match "\treturntype:\\([^\t\n]+\\)" line)
               (setq returntype (match-string-no-properties 1 line)))
-            (when (string-match "namespace:[:]?\\([^\t\n]+\\)" line)
+            (when (string-match "\tnamespace:[:]?\\([^\t\n]+\\)" line)
               (setq namespace (match-string-no-properties 1 line)))
             (setq node `(,name ,file ,cmd ,kind ,class ,interface ,signature
                                ,enum ,returntype ,namespace))
@@ -359,7 +434,8 @@ TAGS is expected to be an absolute path name."
             (ac-ctags-put-node-into-hash-table node lang tags))
           (progress-reporter-update reporter (point)))
         (progress-reporter-done reporter)))
-    (ac-ctags-write-db-to-cache tags db)
+    (ac-ctags-write-hash-table-to-cache (expand-file-name tags))
+    ;(ac-ctags-write-db-to-cache tags db)
     (setq tags-db (ac-ctags-merge-db db tags-db))))
 
 (defun ac-ctags-make-top-level-hash-key (filename)
@@ -367,7 +443,7 @@ TAGS is expected to be an absolute path name."
   (expand-file-name filename))
 
 (defun ac-ctags-put-node-into-hash-table (node lang tags-file)
-  (unless (ac-ctags-get-lang-hash-table tags-file)
+  (unless (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
     ;; create an entry for this TAGS-FILE
     (puthash (ac-ctags-make-top-level-hash-key tags-file) (make-hash-table :test #'equal)
              ac-ctags-top-level-hash-table))
@@ -385,11 +461,25 @@ TAGS is expected to be an absolute path name."
   (push node (gethash (ac-ctags-make-hash-key (ac-ctags-node-name node))
                       tbl)))
 
-(defun ac-ctags-get-lang-hash-table (tags-file)
+(defun ac-ctags-get-lang-hash-table-for-tagfile (tags-file)
   (gethash (ac-ctags-make-top-level-hash-key tags-file) ac-ctags-top-level-hash-table nil))
 
+(defun ac-ctags-get-nodes-by-lang-and-name (lang name)
+  "Return a list of nodes whose language is LANG and whose name begins with NAME."
+  (loop for table in (ac-ctags-get-node-tables-by-lang lang)
+        append (loop for node in (ac-ctags-get-nodes-from-hash-table name table)
+                     when (string-match-p (concat "^" name) (ac-ctags-node-name node))
+                     collect node)))
+
+(defun ac-ctags-get-node-tables-by-lang (lang)
+  "Return a list of hash tables"
+  (mapcar (lambda (tags-file)
+            (gethash lang (ac-ctags-get-lang-hash-table-for-tagfile tags-file)))
+          ac-ctags-current-tags-list))
+
 (defun ac-ctags-get-nodes-from-hash-table (name tbl)
-  (gethash (ac-ctags-make-hash-key name) tbl nil))
+  (when (hash-table-p tbl)
+    (gethash (ac-ctags-make-hash-key name) tbl nil)))
 
 (defun ac-ctags-write-db-to-cache (tags-file db)
   "Write DB into cache."
@@ -560,12 +650,12 @@ FROM-MODE and TO-MODE."
 
 (defun ac-ctags-get-signature (name db lang)
   "Return a list of signatures corresponding to NAME."
-  (loop for e in (cdr (assoc lang db))
-        ;; for each `(name cmd kind signature)'
-        ;; linear searching is not what I want to use...
+  (loop with ret = nil
+        for e in (ac-ctags-get-nodes-by-lang-and-name lang name)
         when (and (string= name (ac-ctags-node-name e))
                   (ac-ctags-node-signature e))
-        collect (ac-ctags-construct-signature e)))
+        collect (ac-ctags-construct-signature e) into ret
+        finally (return (sort ret #'string<))))
 
 (defun ac-ctags-get-signature-by-mode (name db mode)
   "Return a list containing signatures corresponding `name'."
@@ -722,7 +812,9 @@ The next completion is done without ctags file FILENAME."
                          ""
                        (completing-read
                         "Tags file to unload: "
-                        ac-ctags-current-tags-list))))
+                        ac-ctags-current-tags-list
+                        nil
+                        t))))
   (cond
    ((< (length ac-ctags-current-tags-list) 2)
     (message "You don't want to unload a tags file from a list that contains only one tags file."))
@@ -761,11 +853,7 @@ double colon."
     (setq candidates
           ;; changed to try not to use all-completions so that we can
           ;; use yasnippet-related things.
-          (sort (ac-ctags-collect-candidates prefix)
-                #'string<)
-          ;; (sort (all-completions prefix ac-ctags-current-completion-table)
-          ;;       #'string<)
-          )
+          (sort (ac-ctags-collect-candidates prefix) #'string<))
     (let ((len (length candidates)))
       (if (and candidates
                (numberp ac-ctags-candidate-limit)
@@ -778,14 +866,21 @@ double colon."
 Also, if a candidate is of type functin or prototype and has a
 signature, make a candidate with its signature as well as
 yasnippet template if possible."
-  (loop for lang in (ac-ctags-get-mode-string major-mode)
-        nconc (loop for node in (ac-ctags-get-lang-db lang)
-                    for name = (ac-ctags-node-name node)
-                    for kind = (ac-ctags-node-kind node)
-                    when (string-match (concat "^" prefix) name)
-                    collect (if (member kind '("function" "prototype"))
-                                (ac-ctags-make-function-candidate node)
-                              name))))
+  (loop with nlimits = ac-ctags-candidate-limit
+        for tags-file in ac-ctags-current-tags-list
+        for lang-table = (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
+        when lang-table
+        nconc (loop for lang in (ac-ctags-get-mode-string major-mode)
+                    for node-table = (gethash lang lang-table)
+                    when node-table
+                    append (loop with nodes = (ac-ctags-get-nodes-from-hash-table prefix node-table)
+                                 for node in nodes
+                                 for name = (ac-ctags-node-name node)
+                                 for kind = (ac-ctags-node-kind node)
+                                 when (string-match-p (concat "^" prefix) name)
+                                 collect (if (member kind '("function" "prototype"))
+                                             (ac-ctags-make-function-candidate node)
+                                           name)))))
 
 (defun ac-ctags-make-function-candidate (node)
   "Make function candidates with its signature and return type
