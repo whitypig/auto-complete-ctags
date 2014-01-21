@@ -350,13 +350,17 @@ functions of class CLASSNAME."
           ;; If no candidates are found, strip namespace and do the job.
           (when (string-match "::\\([^:]+\\)" typename)
             (ac-ctags-cpp-collect-member-functions
-             (match-string-no-properties 1 typename) prefix))))))
+             (car (last (ac-ctags-cpp-split-string-by-separator typename "::")))
+             prefix))))))
 
 (defun ac-ctags-cpp-strip-typename (typename)
   "Remove c++ keyowrds, template arguments, and \"*\" from TYPENAME."
   (assert (stringp typename) "ac-ctags-cpp-strip-typename")
   (let ((ret typename))
-    (setq ret (replace-regexp-in-string "\\(const\\)"
+    (setq ret (replace-regexp-in-string "\\(const\\)[[:space:]]"
+                                        ""
+                                        ret))
+    (setq ret (replace-regexp-in-string "[[:space:]]\\(const\\)"
                                         ""
                                         ret))
     (setq ret (replace-regexp-in-string "<.*>" "" ret))
@@ -389,11 +393,8 @@ functions of class CLASSNAME."
 members in CLASS. CLASS is either classname or namespace. If
 PREFIX is nil or empty string, return all members of CLASS."
   (message "DEBUG: ac-ctags-cpp-get-members-by-scope-operator, class=%s, prefix=%s" class prefix)
-  (loop for tags-file in ac-ctags-current-tags-list
-        for lang-table = (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
-        for node-table = (gethash "C++" lang-table)
+  (loop for node-table in (ac-ctags-get-node-tables-by-lang "C++")
         with nlimits = ac-ctags-candidate-limit
-        when node-table
         append (loop with case-fold-search = nil
                      with needle = (concat class "::" prefix)
                      with candidates-table = (reverse (gethash class node-table))
