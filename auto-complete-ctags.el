@@ -129,7 +129,11 @@ example.
 
 (defconst ac-ctags-hash-key-for-short-name "SHORTNAME")
 
-;; tagsfile => [ [C++ => (node1 node2...)] [C => (node3 node4...)] ]
+;; tagsfile => [ [C++ => [key1 (node1 node2...) key2 (node3 node4...)]]
+;; [C => [key3 (node4 node5...)] ]]
+;; tagsfile => hashtable1
+;; hashtable1 => hashtable-for-langs
+;; hashtable-for-a-lang => [key (node1 node2...) key2 (node3 node4...)]
 (defvar ac-ctags-top-level-hash-table (make-hash-table :test #'equal)
   "A hash table with keys being a filename of tags file and
   a value being another hash table which holds the contents of
@@ -449,8 +453,7 @@ TAGS is expected to be an absolute path name."
              ac-ctags-top-level-hash-table))
   (ac-ctags-put-node-into-hash-table-1 node
                                        lang
-                                       (gethash (ac-ctags-make-top-level-hash-key tags-file)
-                                                ac-ctags-top-level-hash-table)))
+                                       (ac-ctags-get-lang-hash-table-for-tagfile tags-file)))
 
 (defun ac-ctags-put-node-into-hash-table-1 (node lang tbl)
   (unless (gethash lang tbl nil)
@@ -901,7 +904,7 @@ being properly concatenated."
                 'view (concat ret
                               (ac-ctags-get-spaces-to-insert ret viewprop)
                               returntype)
-                'signature (ac-ctags-node-signature node))))
+                'signature signature)))
 
 (defun ac-ctags-skip-to-delim-backward ()
   (let ((bol (save-excursion (beginning-of-line) (point)))
@@ -974,6 +977,13 @@ SIGNATURE must be like \"(int i, int j)\"."
 
 (defun ac-ctags-get-lang-db (lang)
   (cdr (assoc lang ac-ctags-tags-db)))
+
+(defun ac-ctags-toggle ()
+  "Add or remove `ac-soruce-ctags' into or from `ac-sources'"
+  (interactive)
+  (if (member 'ac-source-ctags ac-sources)
+      (setq ac-sources (delete 'ac-source-ctags ac-sources))
+    (add-to-list 'ac-sources 'ac-source-ctags)))
 
 ;;;;;;;;;;;;;;;;;;;; Prefix functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-get-prefix-function (mode table)
@@ -1072,6 +1082,7 @@ SIGNATURE must be like \"(int i, int j)\"."
                           (ac-ctags-make-yasnippet-template-from-signature
                            signature))))
       (when (stringp template)
+        ;;(message "DEBUG: ac-ctags-c-mode-action, template=%s" template)
         (delete-char (- (length signature)))
         (yas-expand-snippet template)))))
 
