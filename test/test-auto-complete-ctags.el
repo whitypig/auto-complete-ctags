@@ -1,9 +1,6 @@
 (require 'ert)
 (require 'cl)
 
-(test-ac-ctags-before "../auto-complete-ctags.el")
-(test-ac-ctags-before "../auto-complete-ctags-java.el")
-
 (defconst test-ac-ctags-valid-tagfile "cpp.ctags")
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.ctags")
 (defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
@@ -42,6 +39,9 @@
   (with-temp-buffer
     (insert-file-contents-literally file)
     (eval-buffer)))
+
+;(test-ac-ctags-before "../auto-complete-ctags.el")
+;(test-ac-ctags-before "../auto-complete-ctags-java.el")
 
 (ert-deftest test-ac-ctags-is-valid-tags-file-p ()
   "A test to check whether a tags file is created by Exuberant
@@ -1585,3 +1585,27 @@ ctags."
              (sort (mapcar #'ac-ctags-node-name
                            (ac-ctags-get-nodes-by-lang-and-name "C++" "get"))
                    #'string<))))))
+
+(ert-deftest test-ac-ctags-unload-tag-file ()
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile2 'new)
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'current)
+     (should
+      (equal (sort `(,test-ac-ctags-cpp-tagsfile ,test-ac-ctags-cpp-tagsfile2)
+                   #'string<)
+             (sort ac-ctags-current-tags-list
+                   #'string<)))
+     ;; this candidate comes from test-ac-ctags-cpp-tagsfile
+     (should (equal
+              '("getInstance()")
+              (mapcar #'substring-no-properties
+                      (ac-ctags-collect-candidates-by-lang "C++" "getIn"))))
+     ;; then unload test-ac-ctags-cpp-tagsfile2
+     (ac-ctags-unload-tag-file test-ac-ctags-cpp-tagsfile2)
+     (should
+      (equal `(,test-ac-ctags-cpp-tagsfile)
+             ac-ctags-current-tags-list))
+     (should-not
+      ;; so no more candidate which begin with "getIn"
+      (ac-ctags-collect-candidates-by-lang "C++" "getIn")))))

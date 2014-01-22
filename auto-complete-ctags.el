@@ -465,6 +465,7 @@ TAGS is expected to be an absolute path name."
                       tbl)))
 
 (defun ac-ctags-get-lang-hash-table-for-tagfile (tags-file)
+  "Return a hash table which contains the information of TAGS-FILE."
   (gethash (ac-ctags-make-top-level-hash-key tags-file) ac-ctags-top-level-hash-table nil))
 
 (defun ac-ctags-get-nodes-by-lang-and-name (lang name)
@@ -869,21 +870,18 @@ double colon."
 Also, if a candidate is of type functin or prototype and has a
 signature, make a candidate with its signature as well as
 yasnippet template if possible."
-  (loop with nlimits = ac-ctags-candidate-limit
-        for tags-file in ac-ctags-current-tags-list
-        for lang-table = (ac-ctags-get-lang-hash-table-for-tagfile tags-file)
-        when lang-table
-        nconc (loop for lang in (ac-ctags-get-mode-string major-mode)
-                    for node-table = (gethash lang lang-table)
-                    when node-table
-                    append (loop with nodes = (ac-ctags-get-nodes-from-hash-table prefix node-table)
-                                 for node in nodes
-                                 for name = (ac-ctags-node-name node)
-                                 for kind = (ac-ctags-node-kind node)
-                                 when (string-match-p (concat "^" prefix) name)
-                                 collect (if (member kind '("function" "prototype"))
-                                             (ac-ctags-make-function-candidate node)
-                                           name)))))
+  (loop for lang in (ac-ctags-get-mode-string major-mode)
+        append (ac-ctags-collect-candidates-by-lang lang prefix)))
+
+(defun ac-ctags-collect-candidates-by-lang (lang prefix)
+  "Return a list of candidates each of which begins with PREFIX.
+   LANG is a string representing this mode, such as \"C\" \"C+\"."
+  (loop for node in (ac-ctags-get-nodes-by-lang-and-name lang prefix)
+        for name = (ac-ctags-node-name node)
+        for kind = (ac-ctags-node-kind node)
+        collect (if (member kind '("function" "prototype"))
+                    (ac-ctags-make-function-candidate node)
+                  name)))
 
 (defun ac-ctags-make-function-candidate (node)
   "Make function candidates with its signature and return type
