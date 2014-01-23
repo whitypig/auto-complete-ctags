@@ -482,8 +482,13 @@ TAGS is expected to be an absolute path name."
           ac-ctags-current-tags-list))
 
 (defun ac-ctags-get-nodes-from-hash-table (name tbl)
+  "Return a list of nodes whose name begin with NAME."
   (when (hash-table-p tbl)
-    (gethash (ac-ctags-make-hash-key name) tbl nil)))
+    (if (> (length name) 0)
+        (gethash (ac-ctags-make-hash-key name) tbl nil)
+      ;; When NAME is "", we return all the values of tbl
+      (loop for lst being the hash-values of tbl
+            append lst))))
 
 (defun ac-ctags-write-db-to-cache (tags-file db)
   "Write DB into cache."

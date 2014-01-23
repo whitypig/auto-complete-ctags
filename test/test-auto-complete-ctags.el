@@ -594,7 +594,6 @@ ctags."
      )))
 
 (ert-deftest test-ac-ctags-java-method-candidates-1 ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
@@ -618,7 +617,6 @@ ctags."
      )))
 
 (ert-deftest test-ac-ctags-java-method-candidates-1-check-text-property ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
@@ -633,7 +631,6 @@ ctags."
        ))))
 
 (ert-deftest test-ac-ctags-java-collect-methods-in-class ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
@@ -643,13 +640,12 @@ ctags."
          "helloWorld()" "methodThatHasArgument(int i, String str)"
          "methodThatSpansMultipleLines()" "methodWithGenerics()")
        (mapcar #'substring-no-properties
-               (ac-ctags-java-collect-methods-in-class "SampleClass"))))
+               (ac-ctags-java-collect-methods-in-class "SampleClass" nil))))
      (should
-      (null (ac-ctags-java-collect-methods-in-class "NoneExist")))
+      (null (ac-ctags-java-collect-methods-in-class "NoneExist" nil)))
      )))
 
 (ert-deftest test-ac-ctags-java-collect-methods-in-interface ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-inf-tagsfile 'new)
@@ -657,7 +653,7 @@ ctags."
       (equal
        '("method1(int i)" "method2()")
        (mapcar #'substring-no-properties
-               (ac-ctags-java-collect-methods-in-class "SomeInterface")))))))
+               (ac-ctags-java-collect-methods-in-class "SomeInterface" "me")))))))
 
 (ert-deftest test-ac-ctags-java-make-method-candidate ()
   (let ((node1 (test-ac-ctags-make-node :name "method" :kind "method" :class "SomeClass"
@@ -757,17 +753,15 @@ ctags."
              "varname"))))
 
 (ert-deftest tet-ac-ctags-java-collect-fields-in-class ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
      (should
       (equal
        '("CONSTANT" "_intField" "_strField" "_strMap")
-       (ac-ctags-java-collect-fields-in-class "SampleClass"))))))
+       (ac-ctags-java-collect-fields-in-class "SampleClass" nil))))))
 
 (ert-deftest test-ac-ctags-java-field-candidates-1 ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
@@ -815,13 +809,12 @@ ctags."
     ))
 
 (ert-deftest test-ac-ctags-java-collect-enums ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
      (should
       (equal '("BIDDING" "JOINING" "LOSING" "LOST" "WINNING" "WON")
-             (ac-ctags-java-collect-enums "SniperState"))))))
+             (ac-ctags-java-collect-enums "SniperState" nil))))))
 
 (ert-deftest test-ac-ctags-java-parse-field-node ()
   (should
@@ -991,7 +984,6 @@ ctags."
              "method1(new HashMap<String, new HashMap<int, int>>)"))))
 
 (ert-deftest test-ac-ctags-java-get-method-return-type ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
@@ -1002,7 +994,6 @@ ctags."
       (null (ac-ctags-java-get-method-return-type "SampleClass"))))))
 
 (ert-deftest test-ac-ctags-java-collect-packages ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
@@ -1019,7 +1010,6 @@ ctags."
       (null (ac-ctags-java-collect-packages "nonexist"))))))
 
 (ert-deftest test-ac-ctags-java-collect-classes-in-package ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
@@ -1031,7 +1021,6 @@ ctags."
      )))
 
 (ert-deftest test-ac-ctags-java-package-candidates-1 ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-goos-tagfile 'new)
@@ -1043,7 +1032,6 @@ ctags."
              (ac-ctags-java-package-candidates-1 "auctionsniper.AuctionSniperD"))))))
 
 (ert-deftest test-ac-ctags-java-collect-constructors ()
-  :expected-result :failed
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
@@ -1360,7 +1348,7 @@ ctags."
        (setq dummy-node (test-ac-ctags-make-node :name "std::vector"
                                                  :namespace "std"))
        (ac-ctags-put-node-into-hash-table dummy-node "C++" test-ac-ctags-cpp-tagsfile3)
-       (setq lang-tbl (ac-ctags-get-lang-hash-table test-ac-ctags-cpp-tagsfile3))
+       (setq lang-tbl (ac-ctags-get-lang-hash-table-for-tagfile test-ac-ctags-cpp-tagsfile3))
        (setq node-tbl (gethash "C++" lang-tbl nil))
        (should (hash-table-p node-tbl))
        (should (equal '("std::vector")
