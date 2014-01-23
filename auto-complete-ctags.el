@@ -432,15 +432,16 @@ TAGS is expected to be an absolute path name."
               (setq namespace (match-string-no-properties 1 line)))
             (setq node `(,name ,file ,cmd ,kind ,class ,interface ,signature
                                ,enum ,returntype ,namespace))
-            (if (assoc lang db)
-                (push node (cdr (assoc lang db)))
-              (push `(,lang ,node) db))
+            ;; (if (assoc lang db)
+            ;;     (push node (cdr (assoc lang db)))
+            ;;   (push `(,lang ,node) db))
             (ac-ctags-put-node-into-hash-table node lang tags))
           (progress-reporter-update reporter (point)))
         (progress-reporter-done reporter)))
     (ac-ctags-write-hash-table-to-cache (expand-file-name tags))
     ;(ac-ctags-write-db-to-cache tags db)
-    (setq tags-db (ac-ctags-merge-db db tags-db))))
+    ;; (setq tags-db (ac-ctags-merge-db db tags-db))
+    ))
 
 (defun ac-ctags-make-top-level-hash-key (filename)
   "Make a hash key of `ac-ctags-top-level-hash-table' from FILENAME."
@@ -533,12 +534,12 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
           (vec (make-vector ac-ctags-vector-default-size 0)))
       ;; If tags list has changed, we update the information
       (setq db (ac-ctags-build-tagsdb ac-ctags-current-tags-list db))
-      (setq tbl (ac-ctags-build-completion-table db))
-      (setq vec (ac-ctags-build-current-completion-table vec tbl))
+      ;(setq tbl (ac-ctags-build-completion-table db))
+      ;(setq vec (ac-ctags-build-current-completion-table vec tbl))
       ;; Update the state
       (setq ac-ctags-tags-db db
-            ac-ctags-completion-table tbl
-            ac-ctags-current-completion-table vec
+            ;ac-ctags-completion-table tbl
+            ;ac-ctags-current-completion-table vec
             ac-ctags-tags-db-created-time (nbutlast (current-time))))))
 
 (defun ac-ctags-make-signature (tag-signature)
@@ -857,7 +858,7 @@ double colon."
 
 (defun ac-ctags-candidates-1 (prefix)
   (ac-ctags-update-tagsdb ac-ctags-tags-db-created-time)
-  (ac-ctags-update-current-completion-table major-mode)
+  ;(ac-ctags-update-current-completion-table major-mode)
   (when (stringp prefix)
     (setq candidates
           ;; changed to try not to use all-completions so that we can

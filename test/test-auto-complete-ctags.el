@@ -1597,3 +1597,14 @@ ctags."
      (should-not
       ;; so no more candidate which begin with "getIn"
       (ac-ctags-collect-candidates-by-lang "C++" "getIn")))))
+
+(ert-deftest test-ac-ctags-make-package-candidate ()
+  (should
+   (string= "java.lang"
+            (ac-ctags-java-make-package-candidate "java.lang.String" "java.")))
+  (should
+   (string= "java.lang"
+            (ac-ctags-java-make-package-candidate "java.lang" "java")))
+  (should
+   (string= "p1.p2.p3"
+            (ac-ctags-java-make-package-candidate "p1.p2.p3.p4.p5" "p1.p2."))))

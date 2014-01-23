@@ -47,9 +47,10 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
 
 (defun ac-ctags-java-collect-methods-in-class (classname prefix)
   "Return a list of method names which belong to CLASSNAME."
-  (loop for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
-        with ret = nil
+  (loop with ret = nil
         with case-fold-search = nil
+        with nlimits = ac-ctags-candidate-limit
+        for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
         for kind = (ac-ctags-node-kind node)
         for class = (or (ac-ctags-node-class node) (ac-ctags-node-interface node))
         when (and (stringp class)
@@ -58,7 +59,10 @@ methods in CLASSNAME. If CLASSNAME is nil, return nil."
                   (or (string-match (concat "^" classname "$") class)
                       ;; To include OuterClass.InnerClass notation
                       (string-match (concat "\\." classname "$") class)))
-        do (push (ac-ctags-java-make-method-candidate node) ret)
+        do (progn
+             (push (ac-ctags-java-make-method-candidate node) ret)
+             (when (zerop (decf nlimits))
+               (return (sort ret #'string<))))
         finally (return (sort ret #'string<))))
 
 (defun ac-ctags-java-method-action ()
@@ -91,6 +95,7 @@ which begin with PREFIX."
   "Return a list of fields in class/interface CLASSNAME."
   (loop with ret = nil
         with case-fold-search = nil
+        with nlimits = ac-ctags-candidate-limit
         for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
         for kind = (ac-ctags-node-kind node)
         for class = (or (ac-ctags-node-class node) (ac-ctags-node-interface node))
@@ -100,7 +105,10 @@ which begin with PREFIX."
                   (or (string-match (concat "^" classname "$") class)
                       ;; To include OuterClass.InnerClass notation
                       (string-match (concat "\\." classname "$") class)))
-        do (push (ac-ctags-java-make-field-candidate node) ret)
+        do (progn
+             (push (ac-ctags-java-make-field-candidate node) ret)
+             (when (zerop (decf nlimits))
+                 (return (sort ret #'string<))))
         finally (return (sort ret #'string<))))
 
 (defun ac-ctags-java-make-field-candidate (node)
@@ -360,6 +368,7 @@ If STRING is method1(method2(), return method2."
 (defun ac-ctags-java-collect-enums (enum-typename prefix)
   (loop with ret = nil
         with case-fold-search = nil
+        with nlimits = ac-ctags-candidate-limit
         for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
         for kind = (ac-ctags-node-kind node)
         for enum = (ac-ctags-node-enum node)
@@ -368,28 +377,48 @@ If STRING is method1(method2(), return method2."
                   (or (string= enum enum-typename)
                       (string-match (concat "\\." enum-typename "$") enum))
                   (string= "enum constant" kind))
-        do (push (ac-ctags-node-name node) ret)
+        do (progn
+             (push (ac-ctags-node-name node) ret)
+             (when (zerop (decf nlimits))
+               (return (sort ret #'string<))))
         finally (return (sort ret #'string<))))
 
 ;; prefix should be like "name." or "nam"
 (defun ac-ctags-java-collect-packages (prefix)
   "Return a list of package names which begin with PREFIX."
+  (message "DEBUG: ac-ctags-java-collect-packages, prefix=%s" prefix)
   (loop with case-fold-search = nil
+        with nlimits = ac-ctags-candidate-limit
+        with ret = nil
         for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
         for kind = (ac-ctags-node-kind node)
         for name = (ac-ctags-node-name node)
         when (and (stringp kind)
                   (stringp name)
                   (string= kind "package"))
-        collect name into names
-        finally (return (sort (remove-if
-                               (lambda (package) (string= prefix package))
-                               (remove-duplicates names :test #'string=))
+        do (progn
+             (add-to-list 'ret (ac-ctags-java-make-package-candidate name prefix))
+             (when (> (length ret) nlimits)
+               (return (sort ret
+                             #'string<))))
+        finally (return (sort ret
                               #'string<))))
+
+(defun ac-ctags-java-make-package-candidate (name prefix)
+  (cond
+   ((not (string-match-p "\\." prefix))
+    (substring-no-properties name 0 (or (position ?. name :start (1+ (length prefix)))
+                                        (length name))))
+   ((string-match-p "\\." prefix)
+    (substring-no-properties name
+                             0
+                             (position ?. name :start (1+ (length prefix)))))))
 
 (defun ac-ctags-java-collect-classes-in-package (package)
   "Return a list of class, interface, and enum names in package PACKAGE."
   (loop with case-fold-search = nil
+        with nlimits = ac-ctags-candidate-limit
+        with ret = nil
         for node in (ac-ctags-get-nodes-by-lang-and-name "Java" "")
         for kind = (ac-ctags-node-kind node)
         for name = (ac-ctags-node-name node)
@@ -405,8 +434,11 @@ If STRING is method1(method2(), return method2."
                                  "/"
                                  name)
                                 file))
-        collect name into names
-        finally (return (sort names #'string<))))
+        do (progn
+             (push name ret)
+             (when (zerop (decf nlimits))
+               (return (sort ret #'string<))))
+        finally (return (sort ret #'string<))))
 
 (defun ac-ctags-java-package-candidates-1 (prefix)
   (let ((case-fold-search nil))
@@ -472,14 +504,19 @@ If STRING is method1(method2(), return method2."
 (defun ac-ctags-java-collect-constructors (prefix)
   (let ((case-fold-search nil))
     (when (string-match-p "^[A-Z]" prefix)
-      (loop for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
+      (loop with nlimits = ac-ctags-candidate-limit
+            with ret = nil
+            for node in (ac-ctags-get-nodes-by-lang-and-name "Java" prefix)
             for name = (ac-ctags-node-name node)
             for kind = (ac-ctags-node-kind node)
             when (and (stringp name)
                       (stringp kind)
                       (string= kind "method"))
-            collect (ac-ctags-java-make-method-candidate node) into ctors
-            finally (return (sort ctors #'string<))))))
+            do (progn
+                 (push (ac-ctags-java-make-method-candidate node) ret)
+                 (when (zerop (decf nlimits))
+                   (return (sort ret #'string<))))
+            finally (return (sort ret #'string<))))))
 
 ;; Definitions of each ac-source for java
 (ac-define-source ctags-java-method
