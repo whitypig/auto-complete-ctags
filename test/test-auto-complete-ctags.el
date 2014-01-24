@@ -1,6 +1,10 @@
 (require 'ert)
 (require 'cl)
 
+(require 'auto-complete-ctags)
+(require 'auto-complete-ctags-cpp)
+(require 'auto-complete-ctags-java)
+
 (defconst test-ac-ctags-valid-tagfile "cpp.ctags")
 (defconst test-ac-ctags-valid-gtest-tagfile "gtest.ctags")
 (defconst test-ac-ctags-cpp-tagsfile "cpp.ctags")
@@ -125,9 +129,8 @@ ctags."
   (test-ac-ctags-fixture
    (lambda ()
      (let* ((tags (expand-file-name test-ac-ctags-c-tagsfile))
-            (db nil)
-            (db (ac-ctags-build-tagsdb-from-tags tags db))
             (tbl nil))
+       (ac-ctags-build-tagsdb-from-tags tags)
        (setq tbl (gethash "C" (ac-ctags-get-lang-hash-table-for-tagfile tags)))
        (should (hash-table-p tbl))
        (should (< 0 (hash-table-count tbl)))
@@ -139,10 +142,9 @@ ctags."
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:cpp-tags ()
   (test-ac-ctags-fixture
    (lambda ()
-     (let* ((db nil)
-            (tags (expand-file-name test-ac-ctags-cpp-tagsfile))
-            (db (ac-ctags-build-tagsdb-from-tags tags db))
+     (let* ((tags (expand-file-name test-ac-ctags-cpp-tagsfile))
             (tbl nil))
+       (ac-ctags-build-tagsdb-from-tags tags)
        (setq tbl (gethash "C++" (ac-ctags-get-lang-hash-table-for-tagfile tags)))
        (should (hash-table-p tbl))
        (should (< 0 (hash-table-count tbl)))
@@ -155,10 +157,9 @@ ctags."
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:java-tags ()
   (test-ac-ctags-fixture
    (lambda ()
-     (let* ((db nil)
-            (tags (expand-file-name test-ac-ctags-java-tagsfile))
-            (db (ac-ctags-build-tagsdb-from-tags tags db))
+     (let* ((tags (expand-file-name test-ac-ctags-java-tagsfile))
             (tbl nil))
+       (ac-ctags-build-tagsdb-from-tags tags)
        (setq tbl (gethash "Java" (ac-ctags-get-lang-hash-table-for-tagfile tags)))
        (should (hash-table-p tbl))
        (should (< 0 (hash-table-count tbl)))
@@ -170,12 +171,11 @@ ctags."
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:java-check-returntype ()
   (test-ac-ctags-fixture
    (lambda ()
-     (let* ((db nil)
-            (tags (expand-file-name test-ac-ctags-java-tagsfile2))
-            (db (ac-ctags-build-tagsdb-from-tags tags db))
+     (let* ((tags (expand-file-name test-ac-ctags-java-tagsfile2))
             (tbl nil)
             (case-fold-search nil)
             (count 0))
+       (ac-ctags-build-tagsdb-from-tags tags)
        (setq tbl (gethash "Java" (ac-ctags-get-lang-hash-table-for-tagfile tags)))
        (should (hash-table-p tbl))
        (should (< 0 (hash-table-count tbl)))
@@ -191,12 +191,11 @@ ctags."
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:cpp-check-returntype ()
   (test-ac-ctags-fixture
    (lambda ()
-     (let* ((db nil)
-            (tags (expand-file-name test-ac-ctags-cpp-tagsfile))
-            (db (ac-ctags-build-tagsdb-from-tags tags db))
+     (let* ((tags (expand-file-name test-ac-ctags-cpp-tagsfile))
             (tbl nil)
             (case-fold-search nil)
             (count 0))
+       (ac-ctags-build-tagsdb-from-tags tags)
        (setq tbl (gethash "C++" (ac-ctags-get-lang-hash-table-for-tagfile tags)))
        (should (hash-table-p tbl))
        (should (< 0 (hash-table-count tbl)))
@@ -212,12 +211,11 @@ ctags."
 (ert-deftest test-ac-ctags-build-tagsdb-from-tags:c-check-returntype ()
   (test-ac-ctags-fixture
    (lambda ()
-     (let* ((db nil)
-            (tags (expand-file-name test-ac-ctags-c-tagsfile))
-            (db (ac-ctags-build-tagsdb-from-tags tags db))
+     (let* ((tags (expand-file-name test-ac-ctags-c-tagsfile))
             (tbl nil)
             (case-fold-search nil)
             (count 0))
+       (ac-ctags-build-tagsdb-from-tags tags)
        (setq tbl (gethash "C" (ac-ctags-get-lang-hash-table-for-tagfile tags)))
        (should (hash-table-p tbl))
        (should (< 0 (hash-table-count tbl)))
@@ -240,10 +238,9 @@ ctags."
   (test-ac-ctags-fixture
    (lambda ()
      (let* ((tags-list `(,test-ac-ctags-cpp-tagsfile ,test-ac-ctags-java-tagsfile))
-            (db nil)
-            (db (ac-ctags-build-tagsdb tags-list db))
             (cpp-tbl nil)
             (java-tbl nil))
+       (ac-ctags-build-tagsdb tags-list)
        (should (= 2 (hash-table-count ac-ctags-top-level-hash-table)))
        ;; Check cpp-db
        (setq cpp-tbl (gethash "C++" (ac-ctags-get-lang-hash-table-for-tagfile
@@ -264,52 +261,21 @@ ctags."
              do (loop for node in nodes
                       do (should (= (length node) test-ac-ctags-node-length))))))))
 
-;; (ert-deftest test-ac-ctags-build-completion-table:cpp-tags ()
-;;   (let* ((db nil)
-;;          (db (ac-ctags-build-tagsdb `(,test-ac-ctags-cpp-tagsfile) db))
-;;          (tbl (ac-ctags-build-completion-table db)))
-;;     ;; tbl => (("C++" . [n1 n2 n3...]))
-;;     (should (not (null tbl)))
-;;     (should (> (length tbl) 0))
-;;     (should (string= "C++" (caar tbl)))
-;;     (should (> (length (cdar tbl)) 0))
-;;     (should (vectorp (cdar tbl)))
-;;     (should (intern-soft "overloaded_func" (cdar tbl)))))
-
-;; (ert-deftest test-ac-ctags-build-completion-table:cpp-and-java-tags ()
-;;   (let* ((db nil)
-;;          (db (ac-ctags-build-tagsdb
-;;               `(,test-ac-ctags-cpp-tagsfile ,test-ac-ctags-java-tagsfile)
-;;               db))
-;;          (tbl (ac-ctags-build-completion-table db)))
-;;     ;; tbl => (("C++" . [n1 n2...]) ("Java" . [m1 m2...]))
-;;     (should (not (null tbl)))
-;;     (should (= 2 (length tbl)))
-;;     (let ((cpp-tbl (assoc "C++" tbl)) (java-tbl (assoc "Java" tbl)))
-;;       ;; cpp-tbl => ("C++" . [n1 n2...])
-;;       (should (string= "C++" (car cpp-tbl)))
-;;       (should (> (length (cdr cpp-tbl)) 1))
-;;       (should (intern-soft "overloaded_func" (cdr cpp-tbl)))
-;;       ;; java-tbl => ("Java" . [n1 n2...])
-;;       (should (string= "Java" (car java-tbl)))
-;;       (should (> (length (cdr java-tbl)) 1))
-;;       (should (intern-soft "helloWorld" (cdr java-tbl))))))
-
 (ert-deftest test-ac-ctags-get-signature ()
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-reset)
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
      (should (equal '("void normal_func()")
-                    (ac-ctags-get-signature "normal_func" ac-ctags-tags-db "C++")))
+                    (ac-ctags-get-signature "normal_func" "C++")))
      (should
-      (null (ac-ctags-get-signature "TestClass::normal_func" ac-ctags-tags-db "C++")))
+      (null (ac-ctags-get-signature "TestClass::normal_func" "C++")))
      (should (equal '("void overloaded_func(double d)" "void overloaded_func(int i)" )
-                    (ac-ctags-get-signature "overloaded_func" ac-ctags-tags-db "C++")))
+                    (ac-ctags-get-signature "overloaded_func" "C++")))
      ;;(should (equal '("void risky_func() throw (int)")
-                    (ac-ctags-get-signature "risky_func" ac-ctags-tags-db "C++")))
-     (should (null (ac-ctags-get-signature "TestClass" ac-ctags-tags-db "C++")))
-     (should (null (ac-ctags-get-signature "nonexist" ac-ctags-tags-db "C++")))
+                    (ac-ctags-get-signature "risky_func" "C++")))
+     (should (null (ac-ctags-get-signature "TestClass" "C++")))
+     (should (null (ac-ctags-get-signature "nonexist" "C++")))
      )
 
 (ert-deftest test-ac-ctags-get-signature:gtest ()
@@ -319,18 +285,16 @@ ctags."
      (should
       (equal '("void InitGoogleTest(int* argc, char** argv)"
                "void InitGoogleTest(int* argc, wchar_t** argv)")
-             (ac-ctags-get-signature "InitGoogleTest" ac-ctags-tags-db "C++")))
+             (ac-ctags-get-signature "InitGoogleTest" "C++")))
      (should
-      (null (ac-ctags-get-signature "EXPECT_EQ"
-                                    ac-ctags-tags-db
-                                    "C++"))))))
+      (null (ac-ctags-get-signature "EXPECT_EQ" "C++"))))))
 
 (ert-deftest test-ac-ctags-get-signature-by-mode ()
   (test-ac-ctags-fixture
    (lambda ()
      (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
      (should (equal '("void normal_func()")
-                    (ac-ctags-get-signature "normal_func" nil "C++"))))))
+                    (ac-ctags-get-signature "normal_func" "C++"))))))
 
 (ert-deftest test-ac-ctags-c++-document ()
   (test-ac-ctags-fixture
@@ -503,8 +467,8 @@ ctags."
    (string= "void risky_func() throw (int)"
             (ac-ctags-construct-signature
              (test-ac-ctags-make-node
-             :name "risky_func" :cmd "void risky_func() throw (int)"
-             :kind "prototype" :signature "()" :returntype "void")))))
+              :name "risky_func" :cmd "void risky_func() throw (int)"
+              :kind "prototype" :signature "()" :returntype "void")))))
 
 (ert-deftest test-ac-ctags-construct-signature:java ()
   (should
@@ -572,7 +536,6 @@ ctags."
       ;; should we include public/protected/private as a part of signature?
       (equal '("void helloWorld()")
              (ac-ctags-get-signature "helloWorld"
-                                     ac-ctags-tags-db
                                      "Java"))))))
 
 ;; fail
@@ -868,22 +831,6 @@ ctags."
                    (ac-ctags-make-signature "(Object object, Collection<String> strings)")))
   )
 
-(ert-deftest test-ac-ctags-update-ac-sources ()
-  (let ((ac-sources '(ac-source-words-in-same-mode-buffers)))
-    (should (not (member 'ac-source-ctags-java-method
-                         ac-sources)))
-    ;; transition from nil to java-mode
-    (ac-ctags-update-ac-sources nil 'java-mode)
-    (should (member 'ac-source-ctags-java-method ac-sources))
-    ;; transition from java-mode to c++-mode
-    (ac-ctags-update-ac-sources 'java-mode 'c++-mode)
-    (should (not (member 'ac-source-ctags-java-method
-                         ac-sources)))
-    ;; transition from c++-mode to java-mode
-    (ac-ctags-update-ac-sources 'c++-mode 'java-mode)
-    (should (member 'ac-source-ctags-java-method
-                    ac-sources))))
-
 (ert-deftest test-ac-ctags-get-ac-sources-by-mode ()
   (should
    (equal '(ac-source-ctags-java-method
@@ -897,7 +844,6 @@ ctags."
    (lambda ()
      (let ((major-mode 'java-mode))
        (ac-ctags-visit-tags-file test-ac-ctags-java-tagsfile2 'new)
-       (ac-ctags-update-current-completion-table 'java-mode)
        (should (ac-ctags-candidates-1 "methodWith"))
        (should-not (ac-ctags-candidates-1 "nonexist"))))))
 
@@ -926,13 +872,16 @@ ctags."
        ))))
 
 (ert-deftest test-ac-ctags-tagsdb-needs-update-p ()
-  ;; db created time is newer than tags file modification time
-  (should-not
-   (ac-ctags-tagsdb-needs-update-p (current-time)))
-  ;; older than tags file modification time
-  (should
-   (ac-ctags-tagsdb-needs-update-p '(0 0)))
-  )
+  (test-ac-ctags-fixture
+   (lambda ()
+     (ac-ctags-visit-tags-file test-ac-ctags-cpp-tagsfile 'new)
+     ;; db created time is newer than tags file modification time
+     (should-not
+      (ac-ctags-tagsdb-needs-update-p (current-time)))
+     ;; older than tags file modification time
+     (should
+      (ac-ctags-tagsdb-needs-update-p '(0 0)))
+     )))
 
 (ert-deftest test-ac-ctags-java-parse-before-dot ()
   (should
@@ -1007,7 +956,8 @@ ctags."
       (equal '("auctionsniper.ui" "auctionsniper.util" "auctionsniper.xmpp")
              (ac-ctags-java-collect-packages "auctionsniper.")))
      (should
-      (null (ac-ctags-java-collect-packages "nonexist"))))))
+      (null (ac-ctags-java-collect-packages "nonexist")))
+     )))
 
 (ert-deftest test-ac-ctags-java-collect-classes-in-package ()
   (test-ac-ctags-fixture
@@ -1282,17 +1232,6 @@ ctags."
   (should
    (equal '((1 2 3))
           (ac-ctags-split-list '(1 2 3) 4))))
-
-;; this test takes long...
-;; (ert-deftest test-ac-ctags-write-large-db-to-cache ()
-;;   (let ((tags-db (ac-ctags-build-tagsdb-from-tags test-ac-ctags-qt-tags-file nil))
-;;         (db-read nil))
-;;     (ac-ctags-write-db-to-cache test-ac-ctags-qt-tags-file
-;;                                 tags-db)
-;;     (setq db-read
-;;           (ac-ctags-read-tagsdb-from-cache test-ac-ctags-qt-tags-file
-;;                                            nil))
-;;     (should (> (length (cdr (assoc "C++" db-read))) 1))))
 
 (ert-deftest test-ac-ctags-cpp-macro-candidates-1 ()
   (test-ac-ctags-fixture

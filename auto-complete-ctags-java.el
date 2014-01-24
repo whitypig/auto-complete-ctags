@@ -395,7 +395,8 @@ If STRING is method1(method2(), return method2."
         for name = (ac-ctags-node-name node)
         when (and (stringp kind)
                   (stringp name)
-                  (string= kind "package"))
+                  (string= kind "package")
+                  (not (string= name prefix)))
         do (progn
              (add-to-list 'ret (ac-ctags-java-make-package-candidate name prefix))
              (when (> (length ret) nlimits)

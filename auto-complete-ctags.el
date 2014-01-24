@@ -79,28 +79,8 @@
 (defvar ac-ctags-tags-list-set nil
   "The set of lists of tags files.")
 
-(defvar ac-ctags-tags-db nil
-  "An association list with keys being languages and values being
-the information extracted from tags file created by ctags
-program. The following is an example:
-`((\"C++\" (name command kind class signature)...)
-  (\"C\" (name command kind signature)...)
-  (\"Java\" (name command kind class signature)...)
-  (\"Others\" (name command kind signature)...)'")
-
-(defvar ac-ctags-completion-table nil
-  "An association list with keys being a language and values being a
-vector containing tag names in tags files. The following is an
-example.
-`((\"C++\" . [name1 name2 name3...])
-  (\"Java\" . [name1 name2 name3...])
-  (\"Others\" . [name1 name2 name3)])'")
-
-(defvar ac-ctags-current-completion-table nil
-  "A vector used for completion for `ac-ctags-current-tags-list'.")
-
 (defvar ac-ctags-tags-db-created-time nil
-  "Creation time of `ac-ctags-tags-db'")
+  "Modification time of tags db.")
 
 (defvar ac-ctags-prefix-funtion-table
   '((c++-mode . ac-ctags-c++-prefix))
@@ -113,9 +93,6 @@ example.
     (jde-mode . ac-ctags-java-document)
     (malabar-mode . ac-ctags-java-document))
   "A table of document functions")
-
-(defvar ac-ctags-current-major-mode nil
-  "Current major mode")
 
 (defvar ac-ctags-ac-sources-alist
   '((java-mode . (ac-source-ctags-java-method
@@ -173,30 +150,19 @@ need be."
 
 (defun ac-ctags-build (tagsfile new)
   "Update current tags list and build db."
-  (let (db
-        tbl
-        (vec (make-vector ac-ctags-vector-default-size 0))
-        (old-lst ac-ctags-current-tags-list)
+  (let ((old-lst ac-ctags-current-tags-list)
         new-lst)
     (setq new-lst (ac-ctags-update-tags-list tagsfile new))
     (ac-ctags-build-1 old-lst new-lst)))
 
 (defun ac-ctags-build-1 (old-lst new-lst)
   "If tags list has changed, rebuild db."
-  (let (db
-        tbl
-        (vec (make-vector ac-ctags-vector-default-size 0)))
-    (unless (or (null new-lst) (equal old-lst new-lst))
-      ;; If tags list has changed, we update the information
-      (setq db (ac-ctags-build-tagsdb new-lst db))
-      ;(setq tbl (ac-ctags-build-completion-table db))
-      ;(setq vec (ac-ctags-build-current-completion-table vec tbl))
-      ;; Update the state
-      (setq ac-ctags-current-tags-list new-lst
-            ac-ctags-tags-db db
-            ;ac-ctags-completion-table tbl
-            ;ac-ctags-current-completion-table vec
-            ac-ctags-tags-db-created-time (nbutlast (current-time))))))
+  (unless (or (null new-lst) (equal old-lst new-lst))
+    ;; If tags list has changed, we update the information
+    (ac-ctags-build-tagsdb new-lst)
+    ;; Update the state
+    (setq ac-ctags-current-tags-list new-lst
+          ac-ctags-tags-db-created-time (nbutlast (current-time)))))
 
 (defun ac-ctags-create-new-list-p (tagsfile)
   "Ask user whether to create the new tags file list or use the
@@ -238,22 +204,22 @@ ctags."
         (insert-file-contents-literally fullpath nil 0 500)
         (search-forward needle nil t)))))
 
-(defun ac-ctags-build-tagsdb (tags-list tags-db)
+(defun ac-ctags-build-tagsdb (tags-list)
   "Build tagsdb from each element of TAGS-LIST."
-  (dolist (e tags-list tags-db)
+  (dolist (e tags-list)
     (ac-ctags-remove-table-for-tags-file e)
     (cond
      ((ac-ctags-tags-file-updated-p e)
       ;; if this tags file has been updated,
       ;; we have to rebuild tagsdb for this tags file
-      (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db)))
+      (ac-ctags-build-tagsdb-from-tags e))
      ((ac-ctags-cache-file-exist-p e)
       ;; If cache file for this tags file exists, we read that in
       (ac-ctags-merge-hash-table (ac-ctags-read-in-hash-table e) e))
      (t
       ;; If this tags file has NOT been updated and there is no cache file,
       ;; we just re-create tags db
-      (setq tags-db (ac-ctags-build-tagsdb-from-tags e tags-db))))))
+      (ac-ctags-build-tagsdb-from-tags e)))))
 
 (defun ac-ctags-merge-hash-table (tbl tags-file)
   "Put TBL into hash table `ac-ctags-top-level-hash-table'."
@@ -281,38 +247,6 @@ TAGS-FILE is newer than that of cache file."
   "Return created time of this cache file PATHNAME."
   (assert (file-exists-p pathname) "ac-ctags-get-cache-created-time")
   (nth 5 (file-attributes pathname)))
-
-(defun ac-ctags-read-tagsdb-from-cache (tags-file tags-db)
-  "Read tagsdb from cache and return merged TAGS-DB.
-Cache file, if exists, corresponds to one tags file"
-  (when (ac-ctags-cache-file-exist-p tags-file)
-    ;; read from cache and do merge.
-    (let ((db nil)
-          (lang nil)
-          (obj nil)
-          (lst nil))
-      (with-current-buffer (find-file-noselect
-                            (ac-ctags-get-cache-file tags-file) t)
-        (goto-char (point-min))
-        (message "Reading db for %s from cache..." (file-name-nondirectory tags-file))
-        ;; suppress eof signal error from #'read
-        (while (and (not (eq :eof (setq obj (ignore-errors (read (current-buffer))))))
-                    (not (null obj)))
-          (cond
-           ((stringp obj)
-            (setq lang obj)
-            (unless (assoc lang db)
-              (push (list obj) db)))
-           ((listp obj)
-            (assert lang)
-            (mapcar (lambda (e)
-                      (push e (cdr (assoc lang db))))
-                    obj))
-           (t
-            (error "ac-ctags-read-tagsdb-from-cache"))))
-        (kill-buffer))
-      (message "Reading db for %s from cache...done" (file-name-nondirectory tags-file))
-      (setq tags-db (ac-ctags-merge-db db tags-db)))))
 
 (defun ac-ctags-write-hash-table-to-cache (tagfile)
   "Write a hash table which corresponds to TAGFIEL to cache."
@@ -382,7 +316,7 @@ Cache file, if exists, corresponds to one tags file"
     (concat cache-pathname ".acctags")))
 
 ;; TODO remove old entries for tags, then put new entries into table
-(defun ac-ctags-build-tagsdb-from-tags (tags tags-db)
+(defun ac-ctags-build-tagsdb-from-tags (tags)
   "Build tag information db from TAGS and return the db.
 Each element of DB is a list like (name cmd signature) where NAME
   is tag name, CMD is info constructed from EX command, and
@@ -390,8 +324,7 @@ Each element of DB is a list like (name cmd signature) where NAME
   SIGNATURE is nil.
 TAGS is expected to be an absolute path name."
   (assert (ac-ctags-is-valid-tags-file-p tags))
-  (let ((db nil)
-        (case-fold-search nil))
+  (let ((case-fold-search nil))
     (with-temp-buffer
       (insert-file-contents-literally tags)
       (goto-char (point-min))
@@ -432,15 +365,10 @@ TAGS is expected to be an absolute path name."
               (setq namespace (match-string-no-properties 1 line)))
             (setq node `(,name ,file ,cmd ,kind ,class ,interface ,signature
                                ,enum ,returntype ,namespace))
-            ;; (if (assoc lang db)
-            ;;     (push node (cdr (assoc lang db)))
-            ;;   (push `(,lang ,node) db))
             (ac-ctags-put-node-into-hash-table node lang tags))
           (progress-reporter-update reporter (point)))
         (progress-reporter-done reporter)))
     (ac-ctags-write-hash-table-to-cache (expand-file-name tags))
-    ;(ac-ctags-write-db-to-cache tags db)
-    ;; (setq tags-db (ac-ctags-merge-db db tags-db))
     ))
 
 (defun ac-ctags-make-top-level-hash-key (filename)
@@ -491,30 +419,6 @@ TAGS is expected to be an absolute path name."
       (loop for lst being the hash-values of tbl
             append lst))))
 
-(defun ac-ctags-write-db-to-cache (tags-file db)
-  "Write DB into cache."
-  (with-temp-file (ac-ctags-get-cache-file tags-file)
-    (let ((print-circle t))
-      (message "Writing db for %s to cache..." (file-name-nondirectory tags-file))
-      (loop for lang-alist in db
-            for lang = (car lang-alist)
-            for lang-db = (cdr lang-alist)
-            do (print lang (current-buffer))
-            do (loop for l in (ac-ctags-split-list lang-db ac-ctags-split-list-size)
-                     do (print l (current-buffer))))
-      (message "Writing db for %s to cache...done" (file-name-nondirectory tags-file)))))
-
-(defun ac-ctags-merge-db (db tags-db)
-  "Merge DB into TAGS-DB."
-  (loop for lang-db in db
-        for lang = (car lang-db)
-        do (if (assoc lang tags-db)
-               (mapcar (lambda (entry)
-                         (push entry (cdr (assoc lang tags-db))))
-                       (cdr lang-db))
-             (push lang-db tags-db))
-        finally (return tags-db)))
-
 (defun ac-ctags-tagsdb-needs-update-p (db-created-time)
   "Return t if DB-CRETED-TIME is older than any one of file
 modification times of a tags file in `ac-ctags-current-tags-list'."
@@ -529,18 +433,11 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
   (when (or force
             (null db-created-time)
             (ac-ctags-tagsdb-needs-update-p db-created-time))
-    (let (db
-          tbl
-          (vec (make-vector ac-ctags-vector-default-size 0)))
+    (let ()
       ;; If tags list has changed, we update the information
-      (setq db (ac-ctags-build-tagsdb ac-ctags-current-tags-list db))
-      ;(setq tbl (ac-ctags-build-completion-table db))
-      ;(setq vec (ac-ctags-build-current-completion-table vec tbl))
+      (ac-ctags-build-tagsdb ac-ctags-current-tags-list)
       ;; Update the state
-      (setq ac-ctags-tags-db db
-            ;ac-ctags-completion-table tbl
-            ;ac-ctags-current-completion-table vec
-            ac-ctags-tags-db-created-time (nbutlast (current-time))))))
+      (setq ac-ctags-tags-db-created-time (nbutlast (current-time))))))
 
 (defun ac-ctags-make-signature (tag-signature)
   "Return string of signature created using TAG-SIGNATURE."
@@ -596,47 +493,6 @@ modification times of a tags file in `ac-ctags-current-tags-list'."
 (defun ac-ctags-node-namespace (node)
   (nth 9 node))
 
-;; ("C++" (name command signature)...)
-(defun ac-ctags-build-completion-table (tags-db)
-  "TAGS-DB must be created by ac-ctags-build-tagdb beforehand."
-  (let ((tbl nil))
-    (dolist (db tags-db)
-      ;; Create completion table for each language.
-      (let ((lang (car db)) (names (mapcar #'ac-ctags-node-name (cdr db))))
-        (if (assoc lang tbl)
-            ;; intern each name into the vector
-            (mapc (lambda (name) (intern name (cdr (assoc lang tbl))))
-                  names)
-          (let ((vec (make-vector ac-ctags-vector-default-size 0)))
-            (mapc (lambda (name) (intern name vec)) names)
-            (push (cons lang vec) tbl)))))
-    tbl))
-
-(defun ac-ctags-build-current-completion-table (vec table)
-  "Build completion vector"
-  (let ((langs (ac-ctags-get-mode-string major-mode)))
-    (dolist (l langs)
-      (when (cdr (assoc l table))
-        (mapatoms (lambda (sym)
-                    (intern (symbol-name sym) vec))
-                  (cdr (assoc l table)))))
-    vec))
-
-(defun ac-ctags-update-current-completion-table (mode)
-  "Switch completion table. MODE represents the current major mode."
-  (when (ac-ctags-major-mode-has-changed-p mode)
-    (let ((vec (make-vector ac-ctags-vector-default-size 0)))
-      (setq vec (ac-ctags-build-current-completion-table
-                 vec
-                 ac-ctags-completion-table))
-      (setq ac-ctags-current-completion-table vec
-            ac-ctags-current-major-mode mode)
-      )))
-
-(defun ac-ctags-major-mode-has-changed-p (mode)
-  (or (null ac-ctags-current-major-mode)
-      (not (eq mode ac-ctags-current-major-mode))))
-
 (defun ac-ctags-update-ac-sources (from-mode to-mode)
   "Add and remove sources to and from `ac-sources' depending on
 FROM-MODE and TO-MODE."
@@ -658,7 +514,7 @@ FROM-MODE and TO-MODE."
                                        (replace-regexp-in-string "\\$/$" "" str))))
     (replace-regexp-in-string ";$" "" ret)))
 
-(defun ac-ctags-get-signature (name db lang)
+(defun ac-ctags-get-signature (name lang)
   "Return a list of signatures corresponding to NAME."
   (loop with ret = nil
         for e in (ac-ctags-get-nodes-by-lang-and-name lang name)
@@ -667,13 +523,13 @@ FROM-MODE and TO-MODE."
         collect (ac-ctags-construct-signature e) into ret
         finally (return (sort ret #'string<))))
 
-(defun ac-ctags-get-signature-by-mode (name db mode)
+(defun ac-ctags-get-signature-by-mode (name mode)
   "Return a list containing signatures corresponding `name'."
   (let ((langs (ac-ctags-get-mode-string mode))
         (sigs nil))
     (when langs
       (dolist (lang langs)
-        (let ((siglst (ac-ctags-get-signature name db lang)))
+        (let ((siglst (ac-ctags-get-signature name lang)))
           (when siglst
             (setq sigs (append siglst sigs))))))
     (sort sigs #'string<)))
@@ -708,9 +564,6 @@ FROM-MODE and TO-MODE."
   (interactive)
   (setq ac-ctags-current-tags-list nil
         ac-ctags-tags-list-set nil
-        ac-ctags-tags-db nil
-        ac-ctags-completion-table nil
-        ac-ctags-current-completion-table nil
         ac-ctags-top-level-hash-table (make-hash-table :test #'equal)))
 
 (defun ac-ctags-get-mode-string (mode)
@@ -853,12 +706,10 @@ double colon."
 ;;;;;;;;;;;;;;;;;;;; Candidates functions ;;;;;;;;;;;;;;;;;;;;
 (defun ac-ctags-candidates ()
   ;;(message "ac-ctags-candidates, ac-prefix=%s" ac-prefix)
-  (ac-ctags-update-ac-sources ac-ctags-current-major-mode major-mode)
   (ac-ctags-candidates-1 ac-prefix))
 
 (defun ac-ctags-candidates-1 (prefix)
   (ac-ctags-update-tagsdb ac-ctags-tags-db-created-time)
-  ;(ac-ctags-update-current-completion-table major-mode)
   (when (stringp prefix)
     (setq candidates
           ;; changed to try not to use all-completions so that we can
@@ -979,9 +830,6 @@ SIGNATURE must be like \"(int i, int j)\"."
                     (length prop))
                ? )))
 
-(defun ac-ctags-get-lang-db (lang)
-  (cdr (assoc lang ac-ctags-tags-db)))
-
 (defun ac-ctags-toggle ()
   "Add or remove `ac-soruce-ctags' into or from `ac-sources'"
   (interactive)
@@ -1040,7 +888,6 @@ SIGNATURE must be like \"(int i, int j)\"."
 (defun ac-ctags-c++-document (item)
   "Document function for c++-mode."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
-                                             ac-ctags-tags-db
                                              'c++-mode)))
     (cond
      ((= (length lst) 1) (car lst))
@@ -1051,7 +898,6 @@ SIGNATURE must be like \"(int i, int j)\"."
 (defun ac-ctags-c-document (item)
   "Document function for c-mode."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
-                                             ac-ctags-tags-db
                                              'c-mode)))
     (cond
      ((= (length lst) 1) (car lst))
@@ -1062,7 +908,6 @@ SIGNATURE must be like \"(int i, int j)\"."
 (defun ac-ctags-java-document (item)
   "Document function for java-related mode."
   (let ((lst (ac-ctags-get-signature-by-mode (substring-no-properties item)
-                                             ac-ctags-tags-db
                                              'java-mode)))
     (cond
      ((= (length lst) 1) (car lst))
